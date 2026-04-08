@@ -3,56 +3,76 @@ package userhdl
 import (
 	"vexentra-api/internal/modules/user/usersvc"
 	"vexentra-api/internal/transport/http/presenter"
+	"vexentra-api/pkg/auth"
 	"vexentra-api/pkg/custom_errors"
-	"vexentra-api/pkg/logger" // ✅ Import Interface ของเรามา
+	"vexentra-api/pkg/logger"
+	"vexentra-api/pkg/validation"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 )
 
 type UserHandler struct {
 	svc      usersvc.UserService
 	validate *validator.Validate
-	logger   logger.Logger // ✅ เพิ่มฟิลด์นี้เข้าไป
+	logger   logger.Logger
 }
 
-// NewUserHandler ต้องรับ logger เข้ามาด้วย
 func NewUserHandler(svc usersvc.UserService, l logger.Logger) *UserHandler {
-	if l == nil { l = logger.Get() }
+	if l == nil {
+		l = logger.Get()
+	}
 	return &UserHandler{
 		svc:      svc,
-		validate: validator.New(),
-		logger:   l, // ✅ เก็บไว้ใช้งาน
+		validate: validation.New(),
+		logger:   l,
 	}
 }
 
 func (h *UserHandler) Register(c fiber.Ctx) error {
 	req := new(RegisterRequest)
 
-	// --- [A] ใช้ Info เพื่อบอกว่ามีคนเริ่มยิง API เข้ามา ---
-	h.logger.Info("Attempting to register new user")
-
-	// 1. Bind JSON
 	if err := c.Bind().Body(req); err != nil {
-		h.logger.Error("Failed to bind user request", err) // --- [B] ใช้ Error บันทึกปัญหา ---
+		h.logger.Error("Failed to bind register request", err)
 		return presenter.RenderError(c, custom_errors.New(400, "INVALID_JSON", "รูปแบบ JSON ไม่ถูกต้อง"))
 	}
 
-	// --- [C] ใช้ Dump เพื่อดูข้อมูลที่ส่งมา (ดีมากตอน Debug) ---
-	h.logger.Dump("User Registration Payload", req)
-
-	// 2. Validate Input
-	if err := h.validate.Struct(req); err != nil {
-		// --- [D] ใช้ Warn สำหรับความผิดพลาดที่เกิดจาก User (ไม่ถึงกับ Error ระบบ) ---
-		h.logger.Warn("Validation failed for user registration", "details", err.Error())
-		return presenter.RenderError(c, custom_errors.New(400, "VALIDATION_FAILED", err.Error()))
+	if vResult := validation.Validate(h.validate, req); !vResult.IsValid {
+		h.logger.Warn("Validation failed", "errors", vResult.Errors)
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors))
 	}
 
-	// 3. เรียก Service (สมมติว่าผ่าน)
-	// h.svc.Register(...)
+	result, err := h.svc.Register(c.Context(), req.Username, req.Email, req.Password, req.DisplayName)
+	if err != nil {
+		return err
+	}
 
-	// --- [E] ใช้ Success เมื่อทุกอย่างจบลงอย่างสวยงาม ---
-	h.logger.Success("User registered successfully", "username", req.Username)
+	h.logger.Success("User registered successfully", "userID", result.User.ID)
+	return presenter.RenderItem(c, RegisterResponse{
+		User:         NewUserResponse(result.User),
+		AccessToken:  result.TokenPair.AccessToken,
+		RefreshToken: result.TokenPair.RefreshToken,
+	}, fiber.StatusCreated)
+}
 
-	return presenter.RenderItem(c, "User registration successful", fiber.StatusCreated)
+func (h *UserHandler) GetProfile(c fiber.Ctx) error {
+	claims := auth.GetClaims(c)
+	if claims == nil {
+		return custom_errors.New(401, custom_errors.ErrUnauthorized, "ไม่พบข้อมูล Token")
+	}
+
+	// sub is stored as UUID string — parse it back
+	userID, err := uuid.Parse(claims.GetUserID())
+	if err != nil {
+		return custom_errors.New(401, custom_errors.ErrUnauthorized, "Token มี UserID ไม่ถูกต้อง")
+	}
+
+	u, err := h.svc.GetProfile(c.Context(), userID)
+	if err != nil {
+		return err
+	}
+
+	h.logger.Info("Profile retrieved", "userID", userID)
+	return presenter.RenderItem(c, NewUserResponse(u))
 }

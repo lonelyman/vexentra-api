@@ -47,11 +47,6 @@ const (
 	ErrNotFound      = "NOT_FOUND"
 	ErrAlreadyExists = "ALREADY_EXISTS"
 
-	// Orders
-	ErrOrderNotFound      = "ORDER_NOT_FOUND"
-	ErrOrderInvalidStatus = "ORDER_INVALID_STATUS"
-	ErrOrderCreateFailed  = "ORDER_CREATE_FAILED"
-
 	// System
 	ErrInternal = "INTERNAL_SERVER_ERROR"
 )

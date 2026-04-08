@@ -1,6 +1,178 @@
-# Vexentra API
+# Vexentra API — Master Template
 
-A modern RESTful API built with Go, Fiber, PostgreSQL, and Redis. This project demonstrates clean architecture patterns with proper separation of concerns, dependency injection, and containerized deployment.
+Go REST API template ที่ออกแบบตาม Clean Architecture, BigTech standards, และ production-readiness ตั้งแต่ต้น
+
+---
+
+## Tech Stack
+
+| Layer      | Technology                                         |
+| ---------- | -------------------------------------------------- |
+| Framework  | Fiber v3                                           |
+| Database   | PostgreSQL + GORM                                  |
+| Cache      | Redis                                              |
+| Auth       | JWT (HS256) — Access + Refresh Token               |
+| Logger     | slog (JSON production / PrettyHandler development) |
+| Validation | go-playground/validator v10                        |
+| Container  | Docker + Docker Compose                            |
+
+---
+
+## Project Structure
+
+```
+cmd/api/                          # Entrypoint
+internal/
+  bootstrap/                      # App wiring: DI, Fiber, DB, Redis
+  config/                         # Config struct + env loader (Fail-Fast)
+  adapters/database/postgres/     # DB model + repository implementations
+  modules/user/                   # Domain entity + repository interface
+    usersvc/                      # Business logic (UserService)
+  transport/http/
+    health/                       # /health/live + /health/ready
+    middlewares/                  # AuthMiddleware, StructuredLogger
+    presenter/                    # Response envelope (RenderItem/RenderList/RenderError)
+    user/                         # UserHandler, Request, Response
+pkg/
+  auth/                           # JWT AuthService, Claims, GetClaims helper
+  custom_errors/                  # AppError + standard error codes
+  logger/                         # Logger interface + PrettyHandler + JSONHandler
+```
+
+---
+
+## API Endpoints
+
+| Method | Path                     | Auth   | Description                                |
+| ------ | ------------------------ | ------ | ------------------------------------------ |
+| `GET`  | `/health/live`           | —      | Liveness probe (process alive)             |
+| `GET`  | `/health/ready`          | —      | Readiness probe (DB + Redis ping)          |
+| `POST` | `/api/v1/users/register` | —      | Register + auto-login (returns token pair) |
+| `GET`  | `/api/v1/me`             | Bearer | Get own profile (stub)                     |
+
+---
+
+## Quick Start
+
+```bash
+# 1. Clone and enter
+git clone <repo> && cd vexentra-api
+
+# 2. Copy env
+cp .env .env.local   # แก้ค่าให้ตรงกับ local ของคุณ
+
+# 3. Start infrastructure
+docker compose up -d
+
+# 4. Run API (with air for hot reload)
+air
+```
+
+---
+
+## Environment Variables
+
+```env
+# App
+API_ENV=development
+API_PORT=3000
+API_TIMEZONE=Asia/Bangkok
+API_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+
+# PostgreSQL
+POSTGRES_PRIMARY_HOST=vexentra-pgsql
+POSTGRES_PRIMARY_PORT=5432
+POSTGRES_PRIMARY_USER=vexentra_user
+POSTGRES_PRIMARY_PASSWORD=vexentra_pass
+POSTGRES_PRIMARY_NAME=vexentra_db
+POSTGRES_PRIMARY_SSL_MODE=disable
+
+# Redis
+REDIS_HOST=vexentra-redis
+REDIS_PORT=6379
+REDIS_PASSWORD=vexentra_redis_pass
+REDIS_DB=0
+
+# JWT
+JWT_ACCESS_SECRET=change-me-in-production
+JWT_ACCESS_EXPIRY=60m
+JWT_REFRESH_SECRET=change-me-refresh-in-production
+JWT_REFRESH_EXPIRY=336h
+JWT_ISSUER=vexentra-api
+```
+
+---
+
+## Architecture Decisions
+
+### Clean Architecture Layers
+
+```
+Transport (HTTP) → Service (Business Logic) → Repository (Interface) → Adapter (DB/Redis)
+```
+
+- **Domain entity** (`modules/user/user_entity.go`) ไม่มี JSON tags — transport layer จัดการ serialization เพียงที่เดียว
+- **Repository interface** อยู่ใน domain module ไม่ใช่ใน adapter — dependency inversion
+
+### JWT Design (RFC 8725 compliant)
+
+- `AccessClaims` และ `RefreshClaims` เป็น struct แยก → ป้องกัน Token Confusion Attack
+- `jti` (JWT ID) ทุก token → รองรับ Token Blacklist ในอนาคต
+- `sub` = userID ตาม RFC 7519 standard
+- `DeviceID` ใน RefreshClaims → รองรับ per-device logout
+- Refresh Secret แยกจาก Access Secret
+
+### Error Handling
+
+- `AppError` struct พร้อม `HTTPStatus`, `Code`, `Message`, `Details`
+- Global Error Handler ใน Fiber — handler ไม่ต้อง handle transport error เอง
+- Repository แปลง `gorm.ErrRecordNotFound` → `AppError` ก่อนส่งขึ้น
+
+### Health Check (Kubernetes Ready)
+
+- `/health/live` — ไม่แตะ DB/Redis → Kubernetes `livenessProbe`
+- `/health/ready` — ping DB + Redis + per-component status + HTTP 503 เมื่อ unhealthy → Kubernetes `readinessProbe`
+
+---
+
+## Current Status — Review Session (2026-04-08)
+
+### ✅ Completed
+
+| #   | รายการ                                                                                       |
+| --- | -------------------------------------------------------------------------------------------- |
+| 1   | `JWTConfig` struct (Access + Refresh + Issuer) ใน config                                     |
+| 2   | `auth_service.go` — TokenPair, AccessClaims/RefreshClaims, jti, DeviceID, BigTech grade      |
+| 3   | Rename `internal/init` → `internal/bootstrap`                                                |
+| 4   | `UserRepository` — เพิ่ม `GetByEmail`, fix `GetByID` type `string` → `uint`                  |
+| 5   | `UserService` — duplicate email check, inject AuthService, return RegisterResult + TokenPair |
+| 6   | Register `StructuredLogger`, CORS อ่านจาก config แยกตาม env                                  |
+| 7   | Domain entity ลบ JSON tags ออก                                                               |
+| 8   | `PrettyHandler.WithAttrs` / `WithGroup` fix — ไม่ทิ้ง pre-set attributes แล้ว                |
+| 9   | Health Check — `/health/live` + `/health/ready` (Kubernetes standard)                        |
+| 10  | `AuthService` inject ครบ — ไม่มี nil pointer panic ใน protected routes แล้ว                  |
+| 11  | ลบ dead code `registerRoutes()`                                                              |
+| 12  | `auth.GetClaims(c)` helper — type-safe claims extraction                                     |
+| R1  | `GetProfile` — ใช้ `auth.GetClaims(c)` + `svc.GetProfile()` จริง ไม่ใช่ stub แล้ว            |
+| R2  | `GetByUsername` — duplicate username check ก่อน insert                                       |
+| R3  | `bootstrap/redis.go` — comment อัพเดตจากชื่อ package เก่า `init`                             |
+| R4  | `custom_errors/errors.go` — ลบ Order domain error codes ออก (domain leakage)                 |
+| R5  | `godotenv` — auto-load `.env` ใน non-production, skip ใน production                          |
+| R6  | `gormLoggerAdapter.LogMode` — เก็บ level ใน struct, filter ก่อน log ทุก method               |
+| R7  | Soft delete — `gorm.DeletedAt` ใน DB model, `*time.Time` ใน domain entity                    |
+
+---
+
+### 🟡 Minor / Future Improvements
+
+| #   | รายการ                                                                                                                 |
+| --- | ---------------------------------------------------------------------------------------------------------------------- |
+| M1  | `User.ID` เป็น `uint` แต่ JWT `sub` แปลงด้วย `fmt.Sprint` → ควร migrate เป็น `uuid.UUID` สำหรับ security + scalability |
+| M2  | Password validation เฉพาะ `min=8` — ควรเพิ่ม complexity rule                                                           |
+| M3  | ไม่มี `.env.example` file — สำคัญสำหรับ template                                                                       |
+| M4  | ยังไม่มี Login endpoint (`POST /api/v1/auth/login`)                                                                    |
+| M5  | ยังไม่มี Refresh Token endpoint (`POST /api/v1/auth/refresh`)                                                          |
+| M6  | ยังไม่มี Logout endpoint (`POST /api/v1/auth/logout`)                                                                  |
 
 ## 🏗️ Architecture
 
@@ -13,7 +185,7 @@ internal/
   ├── adapters/               # External service adapters
   │   └── database/postgres/  # Database implementations
   ├── config/                 # Configuration management
-  ├── init/                   # Application initialization
+  ├── bootstrap/              # Application initialization (DI wiring)
   ├── modules/                # Business logic modules
   │   └── user/               # User module
   └── transport/http/         # HTTP handlers and middleware

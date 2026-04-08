@@ -80,8 +80,10 @@ func Get() Logger {
 // --- PrettyHandler Section (ยุบรวมมาไว้ที่นี่แล้วค่ะ) ---
 
 type PrettyHandler struct {
-	opts slog.HandlerOptions
-	out  io.Writer
+	opts  slog.HandlerOptions
+	out   io.Writer
+	attrs []slog.Attr // pre-set attributes from WithAttrs calls
+	group string      // active group name from WithGroup calls
 }
 
 func NewPrettyHandler(out io.Writer, opts slog.HandlerOptions) *PrettyHandler {
@@ -116,12 +118,26 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 	timeStr := r.Time.Format("15:04:05")
 	fmt.Fprintf(h.out, "%s %s%s %-7s\033[0m %s", timeStr, color, emoji, level, r.Message)
 
+	// Print pre-set attrs from WithAttrs first
+	for _, a := range h.attrs {
+		key := a.Key
+		if h.group != "" {
+			key = h.group + "." + key
+		}
+		fmt.Fprintf(h.out, " \033[90m%s=\033[0m%v", key, a.Value)
+	}
+
+	// Then print per-record attrs
 	r.Attrs(func(a slog.Attr) bool {
 		if a.Key == "data_dump" {
 			b, _ := json.MarshalIndent(a.Value.Any(), "", "  ")
 			fmt.Fprintf(h.out, "\n\033[95m🔍 DUMP:\033[0m\n%s", string(b))
 		} else {
-			fmt.Fprintf(h.out, " \033[90m%s=\033[0m%v", a.Key, a.Value)
+			key := a.Key
+			if h.group != "" {
+				key = h.group + "." + key
+			}
+			fmt.Fprintf(h.out, " \033[90m%s=\033[0m%v", key, a.Value)
 		}
 		return true
 	})
@@ -130,5 +146,13 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 	return nil
 }
 
-func (h *PrettyHandler) WithAttrs(attrs []slog.Attr) slog.Handler { return h }
-func (h *PrettyHandler) WithGroup(name string) slog.Handler       { return h }
+func (h *PrettyHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
+	copy(newAttrs, h.attrs)
+	copy(newAttrs[len(h.attrs):], attrs)
+	return &PrettyHandler{opts: h.opts, out: h.out, attrs: newAttrs, group: h.group}
+}
+
+func (h *PrettyHandler) WithGroup(name string) slog.Handler {
+	return &PrettyHandler{opts: h.opts, out: h.out, attrs: h.attrs, group: name}
+}

@@ -6,19 +6,22 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config รวบรวมทุกส่วนของระบบ (เน้นสัดส่วนตามแนวทางของนายท่าน)
 type Config struct {
 	App      AppConfig
+	JWT      JWTConfig
 	Postgres PostgresDbs
 	Redis    RedisConfig
 }
 
 type AppConfig struct {
-	Env      string
-	AppPort  string
-	Timezone string
+	Env                string
+	AppPort            string
+	Timezone           string
+	CORSAllowedOrigins []string // comma-separated via API_CORS_ALLOWED_ORIGINS
 }
 
 type PostgresDbs struct {
@@ -40,6 +43,14 @@ func (p PostgresConfig) BuildDSN() string {
 		p.User, p.Password, p.Host, p.Port, p.DBName, p.SSLMode)
 }
 
+type JWTConfig struct {
+	AccessSecret  string
+	AccessExpiry  time.Duration // e.g. "15m"
+	RefreshSecret string
+	RefreshExpiry time.Duration // e.g. "168h" (7 days)
+	Issuer        string
+}
+
 type RedisConfig struct {
 	Host     string
 	Port     string
@@ -53,9 +64,10 @@ func LoadConfig() (*Config, error) {
 
 	cfg := &Config{
 		App: AppConfig{
-			Env:      mustGetEnv("API_ENV", &missingKeys),
-			AppPort:  mustGetEnv("API_PORT", &missingKeys),
-			Timezone: getEnv("API_TIMEZONE", "Asia/Bangkok"), // Timezone ให้มี default ได้
+			Env:                mustGetEnv("API_ENV", &missingKeys),
+			AppPort:            mustGetEnv("API_PORT", &missingKeys),
+			Timezone:           getEnv("API_TIMEZONE", "Asia/Bangkok"),
+			CORSAllowedOrigins: getEnvAsSlice("API_CORS_ALLOWED_ORIGINS", []string{"*"}),
 		},
 		Postgres: PostgresDbs{
 			Primary: PostgresConfig{
@@ -66,6 +78,13 @@ func LoadConfig() (*Config, error) {
 				DBName:   mustGetEnv("POSTGRES_PRIMARY_NAME", &missingKeys),
 				SSLMode:  mustGetEnv("POSTGRES_PRIMARY_SSL_MODE", &missingKeys),
 			},
+		},
+		JWT: JWTConfig{
+			AccessSecret:  mustGetEnv("JWT_ACCESS_SECRET", &missingKeys),
+			AccessExpiry:  mustGetEnvAsDuration("JWT_ACCESS_EXPIRY", &missingKeys),
+			RefreshSecret: mustGetEnv("JWT_REFRESH_SECRET", &missingKeys),
+			RefreshExpiry: mustGetEnvAsDuration("JWT_REFRESH_EXPIRY", &missingKeys),
+			Issuer:        getEnv("JWT_ISSUER", "vexentra-api"),
 		},
 		Redis: RedisConfig{
 			Host:     mustGetEnv("REDIS_HOST", &missingKeys),
@@ -111,4 +130,30 @@ func getEnvAsInt(key string, defaultValue int, missing *[]string) int {
 		return 0
 	}
 	return val
+}
+
+func mustGetEnvAsDuration(key string, missing *[]string) time.Duration {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		*missing = append(*missing, key)
+		return 0
+	}
+	d, err := time.ParseDuration(valStr)
+	if err != nil {
+		*missing = append(*missing, fmt.Sprintf("%s (must be duration e.g. 15m, 168h)", key))
+		return 0
+	}
+	return d
+}
+
+func getEnvAsSlice(key string, defaultValue []string) []string {
+	val := os.Getenv(key)
+	if val == "" {
+		return defaultValue
+	}
+	parts := strings.Split(val, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	return parts
 }

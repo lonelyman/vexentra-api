@@ -6,7 +6,7 @@ import (
 )
 
 type UserResponse struct {
-	ID          uint      `json:"id"`
+	ID          string    `json:"id"` // UUID as string
 	Username    string    `json:"username"`
 	Email       string    `json:"email"`
 	DisplayName string    `json:"display_name"`
@@ -15,10 +15,18 @@ type UserResponse struct {
 
 func NewUserResponse(u *user.User) UserResponse {
 	return UserResponse{
-		ID:          u.ID,
+		ID:          u.ID.String(),
 		Username:    u.Username,
 		Email:       u.Email,
 		DisplayName: u.DisplayName,
 		CreatedAt:   u.CreatedAt,
 	}
+}
+
+// RegisterResponse is the response body for POST /users/register.
+// Returns user profile and token pair so the client can immediately authenticate.
+type RegisterResponse struct {
+	User         UserResponse `json:"user"`
+	AccessToken  string       `json:"access_token"`
+	RefreshToken string       `json:"refresh_token"`
 }

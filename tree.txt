@@ -1,5 +1,6 @@
 .
 ├── Dockerfile
+├── README.md
 ├── cmd
 │   └── api
 │       └── main.go
@@ -13,13 +14,13 @@
 │   │           └── pguser
 │   │               ├── pg_user_model.go
 │   │               └── pg_user_repository.go
-│   ├── config
-│   │   └── config.go
-│   ├── init
+│   ├── bootstrap
 │   │   ├── app.go
 │   │   ├── db.go
 │   │   ├── http.go
 │   │   └── redis.go
+│   ├── config
+│   │   └── config.go
 │   ├── modules
 │   │   └── user
 │   │       ├── user_entity.go
@@ -28,18 +29,35 @@
 │   │           └── user_service.go
 │   └── transport
 │       └── http
+│           ├── auth
+│           │   ├── auth_handler.go
+│           │   ├── auth_request.go
+│           │   └── auth_response.go
+│           ├── health
+│           │   └── health_handler.go
+│           ├── middlewares
+│           │   ├── auth.go
+│           │   └── logger.go
 │           ├── presenter
 │           │   └── presenter.go
 │           ├── router.go
 │           └── user
 │               ├── user_handler.go
+│               ├── user_request.go
 │               └── user_response.go
 ├── pkg
-│   └── custom_errors
-│       └── errors.go
+│   ├── auth
+│   │   ├── auth_service.go
+│   │   └── claims_helper.go
+│   ├── custom_errors
+│   │   └── errors.go
+│   ├── logger
+│   │   └── logger.go
+│   └── validation
+│       └── validator.go
 ├── tmp
 │   ├── build-errors.log
 │   └── main
 └── tree.txt
 
-20 directories, 23 files
+26 directories, 35 files

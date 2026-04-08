@@ -1,24 +1,38 @@
+// internal/transport/http/router.go
 package http
 
 import (
-	"vexentra-api/internal/transport/http/presenter"
+	authhdl "vexentra-api/internal/transport/http/auth"
+	healthhdl "vexentra-api/internal/transport/http/health"
+	"vexentra-api/internal/transport/http/middlewares"
 	userhdl "vexentra-api/internal/transport/http/user"
+	"vexentra-api/pkg/auth"
 
-	// import handler ของ user
 	"github.com/gofiber/fiber/v3"
 )
 
-// SetupRouter รับ UserHandler เข้ามาด้วย (Dependency Injection)
-func SetupRouter(app *fiber.App, userHdl *userhdl.UserHandler) {
+type Handlers struct {
+	User    *userhdl.UserHandler
+	Auth    *authhdl.AuthHandler
+	Health  *healthhdl.HealthHandler
+	AuthSvc auth.AuthService
+}
 
-	app.Get("/test-list", func(c fiber.Ctx) error {
-		products := []fiber.Map{{"id": 1, "name": "Vexentra Shirt"}}
-		pg := presenter.NewOffsetPagination(100, 10, 0)
-		return presenter.RenderList(c, products, pg)
-	})
+func SetupRouter(app *fiber.App, h Handlers) {
+	// Health Check Routes — no version prefix, ops/infra concern
+	health := app.Group("/health")
+	health.Get("/live", h.Health.Live)
+	health.Get("/ready", h.Health.Ready)
 
-	// 2. เส้นทางจริงของ Module User
 	api := app.Group("/api/v1")
-	users := api.Group("/users")
-	users.Post("/register", userHdl.Register)
+
+	// Public Routes
+	api.Post("/users/register", h.User.Register)
+	api.Post("/auth/login", h.Auth.Login)
+	api.Post("/auth/refresh", h.Auth.RefreshToken)
+
+	// Protected Routes
+	protected := api.Group("/", middlewares.AuthMiddleware(h.AuthSvc))
+	protected.Get("/me", h.User.GetProfile)
+	protected.Post("/auth/logout", h.Auth.Logout)
 }

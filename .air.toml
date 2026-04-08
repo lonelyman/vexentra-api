@@ -1,0 +1,13 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  bin = "./tmp/main"
+  cmd = "go build -o ./tmp/main cmd/api/main.go"
+  delay = 1000
+  exclude_dir = ["assets", "tmp", "vendor", "test"]
+  include_ext = ["go", "tpl", "html", "env"]
+  stop_on_error = true
+
+[screen]
+  clear_on_rebuild = true

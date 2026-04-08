@@ -1,0 +1,45 @@
+.
+├── Dockerfile
+├── cmd
+│   └── api
+│       └── main.go
+├── docker-compose.yml
+├── go.mod
+├── go.sum
+├── internal
+│   ├── adapters
+│   │   └── database
+│   │       └── postgres
+│   │           └── pguser
+│   │               ├── pg_user_model.go
+│   │               └── pg_user_repository.go
+│   ├── config
+│   │   └── config.go
+│   ├── init
+│   │   ├── app.go
+│   │   ├── db.go
+│   │   ├── http.go
+│   │   └── redis.go
+│   ├── modules
+│   │   └── user
+│   │       ├── user_entity.go
+│   │       ├── user_repository.go
+│   │       └── usersvc
+│   │           └── user_service.go
+│   └── transport
+│       └── http
+│           ├── presenter
+│           │   └── presenter.go
+│           ├── router.go
+│           └── user
+│               ├── user_handler.go
+│               └── user_response.go
+├── pkg
+│   └── custom_errors
+│       └── errors.go
+├── tmp
+│   ├── build-errors.log
+│   └── main
+└── tree.txt
+
+20 directories, 23 files

@@ -3,16 +3,24 @@ package pguser
 import (
 	"context"
 	"vexentra-api/internal/modules/user"
+	"vexentra-api/pkg/logger"
 
 	"gorm.io/gorm"
 )
 
 type userRepository struct {
-	db *gorm.DB
+	db     *gorm.DB
+	logger logger.Logger
 }
 
-func NewUserRepository(db *gorm.DB) user.UserRepository {
-	return &userRepository{db: db}
+func NewUserRepository(db *gorm.DB, l logger.Logger) user.UserRepository {
+	if l == nil {
+		l = logger.Get()
+	}
+	return &userRepository{
+		db:     db,
+		logger: l,
+	}
 }
 
 func (r *userRepository) Create(ctx context.Context, u *user.User) error {

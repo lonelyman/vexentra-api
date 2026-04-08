@@ -3,7 +3,6 @@ package init
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,7 +11,7 @@ import (
 	"vexentra-api/internal/config"
 	"vexentra-api/internal/modules/user/usersvc"
 	userhdl "vexentra-api/internal/transport/http/user"
-	"vexentra-api/pkg/logger"
+	"vexentra-api/pkg/logger" // ✅ มั่นใจว่า import pkg/logger
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/redis/go-redis/v9"
@@ -24,13 +23,15 @@ type App struct {
 	server *fiber.App
 	db     *gorm.DB
 	redis  *redis.Client
-	logger *slog.Logger
+	logger logger.Logger // ✅ เปลี่ยนเป็น Interface
 }
 
 func InitializeApp(cfg *config.Config) (*App, error) {
-	l := logger.New()
+	// 0. สร้าง Logger (Interface)
+	logger.Init(cfg.App.Env)
+	l := logger.Get()
 
-	// 1. ต่อ Database (ส่ง l เข้าไปด้วย และใช้ cfg.Postgres.Primary ตามจริง)
+	// 1. ต่อ DB (ส่ง Interface เข้าไป)
 	db, err := NewDatabaseConnection(cfg.Postgres.Primary, l)
 	if err != nil {
 		return nil, err
@@ -43,14 +44,17 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	}
 
 	// 3. DI
-	userRepo := pguser.NewUserRepository(db)
-	userSvc := usersvc.NewUserService(userRepo)
-	userHdl := userhdl.NewUserHandler(userSvc)
+	userRepo := pguser.NewUserRepository(db, l)
+	userSvc := usersvc.NewUserService(userRepo, l)
+	userHdl := userhdl.NewUserHandler(userSvc, l)
 
-	// 4. Fiber Server (ส่ง l เข้าไป และใช้ cfg.App.AppPort ในอนาคต)
+	if err := pguser.AutoMigrate(db); err != nil {
+		return nil, err
+	}
+
+	// 4. สร้าง Server (ส่ง Interface เข้าไป)
 	server := NewFiberServer(cfg, l)
 
-	// Route Registration
 	api := server.Group("/api/v1")
 	api.Post("/users/register", userHdl.Register)
 
@@ -68,11 +72,10 @@ func (a *App) Run() error {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		// ✅ ใช้ a.cfg.App.AppPort ตามความจริงใน config.go
 		addr := fmt.Sprintf(":%s", a.cfg.App.AppPort)
 		a.logger.Info("🚀 Vexentra API Starting", "address", addr)
 		if err := a.server.Listen(addr); err != nil {
-			a.logger.Error("❌ Server Listen Error", "error", err)
+			a.logger.Error("❌ Server Listen Error", err)
 		}
 	}()
 

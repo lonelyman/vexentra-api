@@ -59,10 +59,6 @@ func (r *profileRepository) UpsertProfile(ctx context.Context, p *user.Profile) 
 			Bio:         p.Bio,
 			Location:    p.Location,
 			AvatarURL:   p.AvatarURL,
-			WebsiteURL:  p.WebsiteURL,
-			GitHubURL:   p.GitHubURL,
-			LinkedInURL: p.LinkedInURL,
-			TwitterURL:  p.TwitterURL,
 		}
 		if createErr := r.db.WithContext(ctx).Create(m).Error; createErr != nil {
 			r.logger.Error("DB_CREATE_PROFILE_ERROR", createErr)
@@ -86,10 +82,6 @@ func (r *profileRepository) UpsertProfile(ctx context.Context, p *user.Profile) 
 		"bio":          p.Bio,
 		"location":     p.Location,
 		"avatar_url":   p.AvatarURL,
-		"website_url":  p.WebsiteURL,
-		"github_url":   p.GitHubURL,
-		"linkedin_url": p.LinkedInURL,
-		"twitter_url":  p.TwitterURL,
 	})
 	if result.Error != nil {
 		r.logger.Error("DB_UPDATE_PROFILE_ERROR", result.Error)
@@ -97,6 +89,84 @@ func (r *profileRepository) UpsertProfile(ctx context.Context, p *user.Profile) 
 	}
 	p.CreatedAt = existing.CreatedAt
 	p.UpdatedAt = existing.UpdatedAt
+	return nil
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Social Links
+// ─────────────────────────────────────────────────────────────────────
+
+func (r *profileRepository) ListSocialLinks(ctx context.Context, userID uuid.UUID) ([]*user.SocialLink, error) {
+	var models []socialLinkModel
+	if err := r.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Order("sort_order ASC, created_at ASC").
+		Find(&models).Error; err != nil {
+		r.logger.Error("DB_LIST_SOCIAL_LINKS_ERROR", err)
+		return nil, err
+	}
+	links := make([]*user.SocialLink, len(models))
+	for i := range models {
+		links[i] = models[i].ToEntity()
+	}
+	return links, nil
+}
+
+func (r *profileRepository) UpsertSocialLink(ctx context.Context, l *user.SocialLink) error {
+	// one platform per user — upsert by (user_id, platform)
+	var existing socialLinkModel
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND platform = ?", l.UserID, l.Platform).
+		First(&existing).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		id, genErr := uuid.NewV7()
+		if genErr != nil {
+			return custom_errors.NewInternalError("ไม่สามารถสร้าง ID ได้")
+		}
+		l.ID = id
+		m := &socialLinkModel{
+			ID:        l.ID,
+			UserID:    l.UserID,
+			Platform:  l.Platform,
+			URL:       l.URL,
+			SortOrder: l.SortOrder,
+		}
+		if createErr := r.db.WithContext(ctx).Create(m).Error; createErr != nil {
+			r.logger.Error("DB_CREATE_SOCIAL_LINK_ERROR", createErr)
+			return createErr
+		}
+		return nil
+	}
+	if err != nil {
+		r.logger.Error("DB_UPSERT_SOCIAL_LINK_CHECK_ERROR", err)
+		return err
+	}
+
+	// Update existing
+	l.ID = existing.ID
+	result := r.db.WithContext(ctx).Model(&existing).Updates(map[string]any{
+		"url":        l.URL,
+		"sort_order": l.SortOrder,
+	})
+	if result.Error != nil {
+		r.logger.Error("DB_UPDATE_SOCIAL_LINK_ERROR", result.Error)
+		return result.Error
+	}
+	return nil
+}
+
+func (r *profileRepository) DeleteSocialLink(ctx context.Context, linkID, userID uuid.UUID) error {
+	result := r.db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", linkID, userID).
+		Delete(&socialLinkModel{})
+	if result.Error != nil {
+		r.logger.Error("DB_DELETE_SOCIAL_LINK_ERROR", result.Error)
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบ social link นี้")
+	}
 	return nil
 }
 

@@ -7,12 +7,15 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"vexentra-api/internal/adapters/database/postgres/pgsocialplatform"
 	"vexentra-api/internal/adapters/database/postgres/pguser"
 	"vexentra-api/internal/config"
+	"vexentra-api/internal/modules/socialplatform/platformsvc"
 	"vexentra-api/internal/modules/user/usersvc"
 	"vexentra-api/internal/transport/http"
 	authhdl "vexentra-api/internal/transport/http/auth"
 	healthhdl "vexentra-api/internal/transport/http/health"
+	socialplatformhdl "vexentra-api/internal/transport/http/socialplatform"
 	userhdl "vexentra-api/internal/transport/http/user"
 	"vexentra-api/pkg/auth"
 	"vexentra-api/pkg/logger"
@@ -50,6 +53,9 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	if err := pguser.AutoMigrate(db); err != nil {
 		return nil, err
 	}
+	if err := pgsocialplatform.AutoMigrate(db); err != nil {
+		return nil, err
+	}
 
 	server := NewFiberServer(cfg, l)
 
@@ -57,19 +63,23 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	authSvc := auth.NewAuthService(cfg.JWT)
 	userRepo := pguser.NewUserRepository(db, l)
 	profileRepo := pguser.NewProfileRepository(db, l)
+	socialPlatformRepo := pgsocialplatform.NewSocialPlatformRepository(db, l)
 	userSvc := usersvc.NewUserService(userRepo, authSvc, l)
-	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, l)
+	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, socialPlatformRepo, l)
+	socialPlatformSvc := platformsvc.NewSocialPlatformService(socialPlatformRepo, l)
 	userHdl := userhdl.NewUserHandler(userSvc, l)
 	profileHdl := userhdl.NewProfileHandler(profileSvc, cfg.App.ShowcaseUserID, l)
+	socialPlatformHdl := socialplatformhdl.NewSocialPlatformHandler(socialPlatformSvc, l)
 	authHdl := authhdl.NewAuthHandler(userSvc, authSvc, l)
 	healthHdl := healthhdl.NewHealthHandler(db, rdb)
 
 	http.SetupRouter(server, http.Handlers{
-		User:    userHdl,
-		Profile: profileHdl,
-		Auth:    authHdl,
-		Health:  healthHdl,
-		AuthSvc: authSvc,
+		User:           userHdl,
+		Profile:        profileHdl,
+		SocialPlatform: socialPlatformHdl,
+		Auth:           authHdl,
+		Health:         healthHdl,
+		AuthSvc:        authSvc,
 		// Order: orderHdl,
 	})
 

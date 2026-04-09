@@ -1,0 +1,1510 @@
+<!doctype html>
+<html lang="th">
+   <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>สมชาย วงษ์สวรรค์ — Portfolio</title>
+      <link
+         href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
+         rel="stylesheet"
+      />
+      <style>
+         /* ─── RESET & BASE ─── */
+         *,
+         *::before,
+         *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+         }
+         html {
+            scroll-behavior: smooth;
+         }
+
+         :root {
+            --bg: #0f1117;
+            --bg2: #161b27;
+            --bg3: #1c2333;
+            --border: rgba(255, 255, 255, 0.08);
+            --border2: rgba(255, 255, 255, 0.14);
+            --text: #e2e8f0;
+            --text-dim: #8892a4;
+            --text-muted: #4a5568;
+            --accent: #7c6aff;
+            --accent2: #a78bfa;
+            --gold: #f59e0b;
+            --gold2: #fbbf24;
+            --teal: #2dd4bf;
+            --rose: #f472b6;
+            --green: #34d399;
+            --radius: 12px;
+            --radius-sm: 8px;
+         }
+
+         body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Inter", "Sarabun", sans-serif;
+            font-size: 15px;
+            line-height: 1.7;
+            overflow-x: hidden;
+         }
+
+         /* ─── SCROLLBAR ─── */
+         ::-webkit-scrollbar {
+            width: 5px;
+         }
+         ::-webkit-scrollbar-track {
+            background: var(--bg);
+         }
+         ::-webkit-scrollbar-thumb {
+            background: #2d3748;
+            border-radius: 4px;
+         }
+
+         /* ─── NAVBAR ─── */
+         nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 200;
+            background: rgba(15, 17, 23, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 5vw;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+         }
+         .nav-brand {
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--text);
+            letter-spacing: -0.3px;
+         }
+         .nav-brand .dot {
+            color: var(--accent2);
+         }
+         .nav-links {
+            display: flex;
+            gap: 28px;
+            list-style: none;
+         }
+         .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+         }
+         .nav-links a:hover {
+            color: var(--text);
+         }
+
+         /* ─── HERO SECTION ─── */
+         #hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 40px 5vw 60px;
+            position: relative;
+            overflow: hidden;
+         }
+         /* ambient glow */
+         #hero::before {
+            content: "";
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            top: -200px;
+            right: -100px;
+            background: radial-gradient(
+               circle,
+               rgba(124, 106, 255, 0.12) 0%,
+               transparent 70%
+            );
+            pointer-events: none;
+         }
+         #hero::after {
+            content: "";
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            bottom: -100px;
+            left: -50px;
+            background: radial-gradient(
+               circle,
+               rgba(45, 212, 191, 0.07) 0%,
+               transparent 70%
+            );
+            pointer-events: none;
+         }
+
+         .hero-inner {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 60px;
+            align-items: center;
+            max-width: 1100px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+         }
+
+         .hero-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(124, 106, 255, 0.12);
+            border: 1px solid rgba(124, 106, 255, 0.25);
+            border-radius: 99px;
+            padding: 4px 14px;
+            font-size: 12px;
+            color: var(--accent2);
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            margin-bottom: 20px;
+         }
+         .hero-eyebrow::before {
+            content: "●";
+            font-size: 8px;
+         }
+
+         .hero-name {
+            font-size: clamp(2.4rem, 5vw, 3.8rem);
+            font-weight: 700;
+            line-height: 1.15;
+            letter-spacing: -1px;
+            color: var(--text);
+            margin-bottom: 12px;
+         }
+         .hero-name .highlight {
+            background: linear-gradient(135deg, var(--accent2), var(--teal));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+         }
+
+         .hero-headline {
+            font-size: 1.1rem;
+            color: var(--gold);
+            font-weight: 500;
+            margin-bottom: 18px;
+            letter-spacing: 0.3px;
+         }
+
+         .hero-bio {
+            color: var(--text-dim);
+            font-size: 15px;
+            line-height: 1.75;
+            max-width: 520px;
+            margin-bottom: 32px;
+         }
+
+         .hero-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 36px;
+            font-size: 13px;
+            color: var(--text-dim);
+         }
+         .hero-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+         }
+         .hero-meta-item .icon {
+            opacity: 0.6;
+         }
+
+         .hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+         }
+
+         .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 11px 24px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition:
+               background 0.2s,
+               transform 0.15s;
+            font-family: inherit;
+         }
+         .btn-primary:hover {
+            background: var(--accent2);
+            transform: translateY(-1px);
+         }
+
+         .btn-ghost {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 11px 24px;
+            background: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--border2);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+         }
+         .btn-ghost:hover {
+            border-color: var(--text-dim);
+            color: var(--text);
+         }
+
+         /* Avatar */
+         .hero-avatar-wrap {
+            position: relative;
+            flex-shrink: 0;
+         }
+         .hero-avatar {
+            width: 240px;
+            height: 240px;
+            border-radius: var(--radius);
+            background: linear-gradient(135deg, #2d3748, #1a202c);
+            border: 1px solid var(--border2);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+         }
+         .hero-avatar::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+               135deg,
+               rgba(124, 106, 255, 0.15),
+               rgba(45, 212, 191, 0.1)
+            );
+         }
+         /* status badge */
+         .availability-badge {
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg2);
+            border: 1px solid var(--border2);
+            border-radius: 99px;
+            padding: 5px 14px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--green);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+         }
+         .avail-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s ease-in-out infinite;
+         }
+         @keyframes pulse {
+            0%,
+            100% {
+               opacity: 1;
+            }
+            50% {
+               opacity: 0.3;
+            }
+         }
+
+         /* social row */
+         .social-links {
+            display: flex;
+            gap: 10px;
+            margin-top: 24px;
+         }
+         .social-link {
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--border2);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 16px;
+            transition: all 0.2s;
+         }
+         .social-link:hover {
+            border-color: var(--accent2);
+            color: var(--accent2);
+         }
+
+         /* ─── SECTION SHARED ─── */
+         section {
+            padding: 90px 5vw;
+         }
+         .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent2);
+            margin-bottom: 10px;
+         }
+         .section-title {
+            font-size: clamp(1.6rem, 3vw, 2.2rem);
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--text);
+            margin-bottom: 8px;
+         }
+         .section-sub {
+            color: var(--text-dim);
+            font-size: 15px;
+            margin-bottom: 56px;
+            max-width: 480px;
+         }
+
+         /* ─── DIVIDER ─── */
+         .section-divider {
+            border: none;
+            border-top: 1px solid var(--border);
+         }
+
+         /* ─── SKILLS SECTION ─── */
+         #skills {
+            background: var(--bg2);
+         }
+
+         .skills-layout {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+         }
+
+         .skill-category-card {
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            transition: border-color 0.2s;
+         }
+         .skill-category-card:hover {
+            border-color: var(--border2);
+         }
+
+         .skill-cat-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+         }
+
+         .skill-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+         }
+         .skill-item:last-child {
+            margin-bottom: 0;
+         }
+         .skill-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text);
+         }
+         .skill-dots {
+            display: flex;
+            gap: 4px;
+         }
+         .skill-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border2);
+         }
+         .skill-dot.filled {
+            background: var(--accent2);
+         }
+         .skill-dot.filled.gold {
+            background: var(--gold);
+         }
+         .skill-dot.filled.teal {
+            background: var(--teal);
+         }
+         .skill-dot.filled.rose {
+            background: var(--rose);
+         }
+
+         /* ─── EXPERIENCE SECTION ─── */
+         #experience {
+            background: var(--bg);
+         }
+
+         .timeline {
+            position: relative;
+            max-width: 800px;
+         }
+         .timeline::before {
+            content: "";
+            position: absolute;
+            left: 20px;
+            top: 6px;
+            bottom: 0;
+            width: 1px;
+            background: linear-gradient(to bottom, var(--accent), transparent);
+         }
+
+         .timeline-item {
+            display: flex;
+            gap: 28px;
+            margin-bottom: 40px;
+            position: relative;
+         }
+         .timeline-item:last-child {
+            margin-bottom: 0;
+         }
+
+         .timeline-dot-wrap {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 4px;
+         }
+         .timeline-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent2);
+            border: 2px solid var(--bg);
+            box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+            flex-shrink: 0;
+            margin-left: 15px;
+         }
+         .timeline-dot.current {
+            background: var(--green);
+            box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+         }
+
+         .timeline-body {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 22px 26px;
+            flex: 1;
+            transition: border-color 0.2s;
+         }
+         .timeline-body:hover {
+            border-color: var(--border2);
+         }
+
+         .timeline-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+         }
+         .timeline-position {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text);
+         }
+         .timeline-period {
+            font-size: 12px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            padding: 3px 10px;
+            background: var(--bg3);
+            border-radius: 99px;
+            border: 1px solid var(--border);
+         }
+         .timeline-company-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+         }
+         .timeline-company {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gold);
+         }
+         .timeline-location {
+            font-size: 13px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+         }
+         .timeline-desc {
+            font-size: 14px;
+            color: var(--text-dim);
+            line-height: 1.7;
+         }
+         .current-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(52, 211, 153, 0.1);
+            border: 1px solid rgba(52, 211, 153, 0.25);
+            color: var(--green);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 99px;
+         }
+         .current-badge::before {
+            content: "●";
+            font-size: 7px;
+         }
+
+         /* ─── PORTFOLIO SECTION ─── */
+         #portfolio {
+            background: var(--bg2);
+         }
+
+         .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+         }
+
+         .portfolio-card {
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition:
+               border-color 0.2s,
+               transform 0.2s,
+               box-shadow 0.2s;
+            cursor: pointer;
+         }
+         .portfolio-card:hover {
+            border-color: var(--border2);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+         }
+         .portfolio-card.featured {
+            border-color: rgba(245, 158, 11, 0.25);
+         }
+         .portfolio-card.featured:hover {
+            border-color: rgba(245, 158, 11, 0.5);
+         }
+
+         .portfolio-cover {
+            height: 180px;
+            background: linear-gradient(135deg, #1e2540, #2d1b4e);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            position: relative;
+            overflow: hidden;
+         }
+         .portfolio-cover::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+               to bottom,
+               transparent 60%,
+               rgba(15, 17, 23, 0.4)
+            );
+         }
+
+         /* different gradient for each */
+         .cover-a {
+            background: linear-gradient(135deg, #1a2744, #2d1b81);
+         }
+         .cover-b {
+            background: linear-gradient(135deg, #1e3a2f, #0d4030);
+         }
+         .cover-c {
+            background: linear-gradient(135deg, #3d1a1a, #5c2d0a);
+         }
+         .cover-d {
+            background: linear-gradient(135deg, #1e1e3d, #2d2460);
+         }
+         .cover-e {
+            background: linear-gradient(135deg, #0d3340, #0d4a38);
+         }
+         .cover-f {
+            background: linear-gradient(135deg, #3a1a2e, #1a1050);
+         }
+
+         .featured-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 2;
+            background: var(--gold);
+            color: #000;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 99px;
+            letter-spacing: 0.5px;
+         }
+
+         .portfolio-body {
+            padding: 22px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+         }
+
+         .portfolio-status-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+         }
+         .status-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 9px;
+            border-radius: 99px;
+            letter-spacing: 0.3px;
+         }
+         .status-published {
+            background: rgba(52, 211, 153, 0.12);
+            color: var(--green);
+            border: 1px solid rgba(52, 211, 153, 0.2);
+         }
+         .status-draft {
+            background: rgba(148, 163, 184, 0.1);
+            color: var(--text-muted);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+         }
+
+         .portfolio-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 8px;
+            line-height: 1.35;
+            letter-spacing: -0.2px;
+         }
+         .portfolio-summary {
+            font-size: 14px;
+            color: var(--text-dim);
+            line-height: 1.65;
+            flex: 1;
+            margin-bottom: 18px;
+         }
+
+         .portfolio-footer {
+            border-top: 1px solid var(--border);
+            padding-top: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+         }
+         .portfolio-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+         }
+         .ptag {
+            font-size: 11px;
+            font-weight: 500;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(124, 106, 255, 0.1);
+            color: var(--accent2);
+            border: 1px solid rgba(124, 106, 255, 0.15);
+         }
+         .ptag.teal {
+            background: rgba(45, 212, 191, 0.1);
+            color: var(--teal);
+            border-color: rgba(45, 212, 191, 0.15);
+         }
+         .ptag.gold {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--gold2);
+            border-color: rgba(245, 158, 11, 0.15);
+         }
+         .ptag.rose {
+            background: rgba(244, 114, 182, 0.1);
+            color: var(--rose);
+            border-color: rgba(244, 114, 182, 0.15);
+         }
+
+         .portfolio-links {
+            display: flex;
+            gap: 8px;
+         }
+         .plink {
+            width: 30px;
+            height: 30px;
+            border: 1px solid var(--border2);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s;
+         }
+         .plink:hover {
+            border-color: var(--accent2);
+            color: var(--accent2);
+         }
+
+         /* ─── CONTACT SECTION ─── */
+         #contact {
+            background: var(--bg);
+            text-align: center;
+         }
+
+         .contact-inner {
+            max-width: 600px;
+            margin: 0 auto;
+         }
+         .contact-headline {
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 16px;
+         }
+         .contact-headline .grad {
+            background: linear-gradient(135deg, var(--accent2), var(--teal));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+         }
+         .contact-sub {
+            color: var(--text-dim);
+            margin-bottom: 40px;
+         }
+
+         .contact-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            margin-bottom: 40px;
+         }
+         .contact-card {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 16px;
+            text-decoration: none;
+            color: var(--text-dim);
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+         }
+         .contact-card:hover {
+            border-color: var(--border2);
+            color: var(--text);
+            transform: translateY(-2px);
+         }
+         .contact-card-icon {
+            font-size: 1.5rem;
+         }
+         .contact-card-label {
+            font-size: 13px;
+            font-weight: 500;
+         }
+         .contact-card-value {
+            font-size: 12px;
+            color: var(--text-muted);
+         }
+
+         /* ─── FOOTER ─── */
+         footer {
+            border-top: 1px solid var(--border);
+            padding: 24px 5vw;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: var(--text-muted);
+            flex-wrap: wrap;
+            gap: 8px;
+         }
+         footer a {
+            color: var(--text-dim);
+            text-decoration: none;
+         }
+         footer a:hover {
+            color: var(--accent2);
+         }
+
+         /* ─── RESPONSIVE ─── */
+         @media (max-width: 768px) {
+            .hero-inner {
+               grid-template-columns: 1fr;
+            }
+            .hero-avatar-wrap {
+               display: none;
+            }
+            .timeline::before {
+               left: 6px;
+            }
+            .timeline-dot {
+               margin-left: 1px;
+            }
+            nav {
+               padding: 0 4vw;
+            }
+            .nav-links {
+               display: none;
+            }
+            section {
+               padding: 60px 4vw;
+            }
+         }
+      </style>
+   </head>
+   <body>
+      <!-- ─── HERO ─── -->
+      <!-- Data from: profiles table -->
+      <!-- display_name, headline, bio, location, avatar_url, website_url, linkedin_url, twitter_url -->
+      <section id="hero">
+         <div class="hero-inner">
+            <div>
+               <h1 class="hero-name">
+                  สมชาย<br />
+                  <span class="highlight">วงษ์สวรรค์</span>
+               </h1>
+               <!-- profiles.headline -->
+               <p class="hero-headline">
+                  Brand Designer &amp; Creative Strategist
+               </p>
+               <!-- profiles.bio -->
+               <p class="hero-bio">
+                  นักออกแบบแบรนด์ที่มีประสบการณ์กว่า 8
+                  ปีในการสร้างอัตลักษณ์องค์กรให้กับธุรกิจ SME ถึงองค์กรขนาดใหญ่
+                  เชื่อว่าการออกแบบที่ดีต้องสื่อเรื่องราว ไม่ใช่แค่ความสวยงาม
+               </p>
+               <!-- profiles.location + extra meta -->
+               <div class="hero-meta">
+                  <div class="hero-meta-item">
+                     <span class="icon">📍</span> กรุงเทพฯ, ประเทศไทย
+                  </div>
+                  <div class="hero-meta-item">
+                     <span class="icon">🏢</span> Creative Studio Founder
+                  </div>
+                  <div class="hero-meta-item">
+                     <span class="icon">📅</span> 8+ ปีประสบการณ์
+                  </div>
+               </div>
+               <div class="hero-actions">
+                  <a href="#portfolio" class="btn-primary">ดูผลงาน →</a>
+                  <a href="#contact" class="btn-ghost">ติดต่อฉัน</a>
+               </div>
+               <!-- profiles.linkedin_url, twitter_url, website_url, github_url -->
+               <div class="social-links">
+                  <a href="#" class="social-link" title="LinkedIn">in</a>
+                  <a href="#" class="social-link" title="Behance">Bē</a>
+                  <a href="#" class="social-link" title="Website">🌐</a>
+                  <a href="#" class="social-link" title="Instagram">ig</a>
+               </div>
+            </div>
+
+            <div class="hero-avatar-wrap">
+               <!-- profiles.avatar_url -->
+               <div class="hero-avatar">🎨</div>
+            </div>
+         </div>
+      </section>
+
+      <!-- ─── SKILLS ─── -->
+      <!-- Data from: skills table (name, category, proficiency 1-5) -->
+      <section id="skills">
+         <div class="section-label">ทักษะ</div>
+         <h2 class="section-title">สิ่งที่ฉันทำได้</h2>
+         <p class="section-sub">
+            ทักษะที่สะสมมาจากประสบการณ์จริง ผ่านโปรเจกต์หลากหลายประเภท
+         </p>
+
+         <div class="skills-layout">
+            <!-- category: "การออกแบบ" -->
+            <div class="skill-category-card">
+               <div class="skill-cat-label">การออกแบบ</div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Brand Identity</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Visual Design</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Motion Graphics</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Package Design</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot filled gold"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+            </div>
+
+            <!-- category: "เครื่องมือ" -->
+            <div class="skill-category-card">
+               <div class="skill-cat-label">เครื่องมือ</div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Adobe Illustrator</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Adobe Photoshop</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Figma</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">After Effects</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot filled teal"></div>
+                     <div class="skill-dot"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+            </div>
+
+            <!-- category: "กลยุทธ์" -->
+            <div class="skill-category-card">
+               <div class="skill-cat-label">กลยุทธ์และการสื่อสาร</div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Brand Strategy</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Creative Direction</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Copywriting</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Presentation Design</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot filled"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+            </div>
+
+            <!-- category: "ธุรกิจ" -->
+            <div class="skill-category-card">
+               <div class="skill-cat-label">ทักษะธุรกิจ</div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Client Management</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Project Management</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Budget Planning</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+
+               <div class="skill-item">
+                  <span class="skill-name">Negotiation</span>
+                  <div class="skill-dots">
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot filled rose"></div>
+                     <div class="skill-dot"></div>
+                  </div>
+               </div>
+            </div>
+         </div>
+      </section>
+
+      <!-- ─── EXPERIENCE ─── -->
+      <!-- Data from: experiences table -->
+      <!-- company, position, location, description, started_at, ended_at, is_current -->
+      <section id="experience">
+         <div class="section-label">ประสบการณ์</div>
+         <h2 class="section-title">เส้นทางการทำงาน</h2>
+         <p class="section-sub">
+            ประสบการณ์จากองค์กรที่หลากหลาย ทั้งเอเจนซี่ ฟรีแลนซ์
+            และธุรกิจของตัวเอง
+         </p>
+
+         <div class="timeline">
+            <!-- is_current: true -->
+            <div class="timeline-item">
+               <div class="timeline-dot-wrap">
+                  <div class="timeline-dot current"></div>
+               </div>
+               <div class="timeline-body">
+                  <div class="timeline-header">
+                     <span class="timeline-position"
+                        >Founder &amp; Creative Director</span
+                     >
+                     <span class="timeline-period">2021 — ปัจจุบัน</span>
+                  </div>
+                  <div class="timeline-company-row">
+                     <span class="timeline-company">Vexentra Studio</span>
+                     <span class="timeline-location">📍 กรุงเทพฯ, ไทย</span>
+                     <span class="current-badge">กำลังทำงาน</span>
+                  </div>
+                  <p class="timeline-desc">
+                     ก่อตั้งสตูดิโอออกแบบบแรนด์ของตัวเอง ดูแลงานตั้งแต่
+                     Discovery Session ไปจนถึง Delivery ให้กับลูกค้ากว่า 40
+                     แบรนด์ ครอบคลุมทั้งอาหาร บิวตี้ อสังหาริมทรัพย์ และการศึกษา
+                  </p>
+               </div>
+            </div>
+
+            <div class="timeline-item">
+               <div class="timeline-dot-wrap">
+                  <div class="timeline-dot"></div>
+               </div>
+               <div class="timeline-body">
+                  <div class="timeline-header">
+                     <span class="timeline-position"
+                        >Senior Brand Designer</span
+                     >
+                     <span class="timeline-period">2018 — 2021</span>
+                  </div>
+                  <div class="timeline-company-row">
+                     <span class="timeline-company">BBDO Bangkok</span>
+                     <span class="timeline-location">📍 กรุงเทพฯ, ไทย</span>
+                  </div>
+                  <p class="timeline-desc">
+                     ออกแบบและดูแลทิศทางสร้างสรรค์ให้กับแคมเปญระดับประเทศ
+                     รับผิดชอบ visual identity ให้กับแบรนด์ระดับ FMCG กว่า 10
+                     แบรนด์ รวมถึง Lead ทีมนักออกแบบ 5 คน
+                  </p>
+               </div>
+            </div>
+
+            <div class="timeline-item">
+               <div class="timeline-dot-wrap">
+                  <div class="timeline-dot"></div>
+               </div>
+               <div class="timeline-body">
+                  <div class="timeline-header">
+                     <span class="timeline-position">Graphic Designer</span>
+                     <span class="timeline-period">2016 — 2018</span>
+                  </div>
+                  <div class="timeline-company-row">
+                     <span class="timeline-company">SCB Creative Hub</span>
+                     <span class="timeline-location">📍 กรุงเทพฯ, ไทย</span>
+                  </div>
+                  <p class="timeline-desc">
+                     ดูแลงานออกแบบสื่อสำหรับแคมเปญ Digital Banking
+                     ประสานงานกับทีม UX และ Marketing เพื่อออก Brand Guideline
+                     ของแอป SCB Easy
+                  </p>
+               </div>
+            </div>
+
+            <div class="timeline-item">
+               <div class="timeline-dot-wrap">
+                  <div class="timeline-dot"></div>
+               </div>
+               <div class="timeline-body">
+                  <div class="timeline-header">
+                     <span class="timeline-position"
+                        >Junior Designer &amp; Intern</span
+                     >
+                     <span class="timeline-period">2015 — 2016</span>
+                  </div>
+                  <div class="timeline-company-row">
+                     <span class="timeline-company"
+                        >Freelance / Self-employed</span
+                     >
+                     <span class="timeline-location">📍 Remote</span>
+                  </div>
+                  <p class="timeline-desc">
+                     เริ่มต้นรับงานออกแบบ logo
+                     และสื่อสิ่งพิมพ์ให้กับธุรกิจขนาดเล็กในพื้นที่
+                     ผ่านคณะนิเทศศาสตร์ มหาวิทยาลัยกรุงเทพ
+                  </p>
+               </div>
+            </div>
+         </div>
+      </section>
+
+      <!-- ─── PORTFOLIO ─── -->
+      <!-- Data from: portfolio_items table -->
+      <!-- title, summary, description, cover_image_url, status, featured, tags, demo_url, source_url -->
+      <section id="portfolio">
+         <div class="section-label">ผลงาน</div>
+         <h2 class="section-title">โปรเจกต์ที่ภูมิใจ</h2>
+         <p class="section-sub">ผลงานคัดสรรจากประสบการณ์ทำงานจริงที่ผ่านมา</p>
+
+         <div class="portfolio-grid">
+            <!-- featured: true, status: published -->
+            <div class="portfolio-card featured">
+               <div class="portfolio-cover cover-a">
+                  🧴
+                  <div class="featured-badge">⭐ Featured</div>
+               </div>
+               <div class="portfolio-body">
+                  <div class="portfolio-status-row">
+                     <span class="status-badge status-published"
+                        >Published</span
+                     >
+                  </div>
+                  <div class="portfolio-title">
+                     Refresh Skincare — Complete Brand Identity
+                  </div>
+                  <p class="portfolio-summary">
+                     ออกแบบ Brand Identity ครบวงจรสำหรับแบรนด์ Skincare ธรรมชาติ
+                     ตั้งแต่ Logo, Color System, Typography, Package Design
+                     ไปจนถึง Brand Guideline 80 หน้า
+                  </p>
+                  <div class="portfolio-footer">
+                     <div class="portfolio-tags">
+                        <span class="ptag gold">Branding</span>
+                        <span class="ptag gold">Packaging</span>
+                        <span class="ptag">Logo</span>
+                     </div>
+                     <div class="portfolio-links">
+                        <a href="#" class="plink" title="ดูงาน">↗</a>
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            <!-- featured: false, status: published -->
+            <div class="portfolio-card">
+               <div class="portfolio-cover cover-b">🏢</div>
+               <div class="portfolio-body">
+                  <div class="portfolio-status-row">
+                     <span class="status-badge status-published"
+                        >Published</span
+                     >
+                  </div>
+                  <div class="portfolio-title">
+                     Greenway Properties — Corporate Rebranding
+                  </div>
+                  <p class="portfolio-summary">
+                     Rebranding บริษัทอสังหาริมทรัพย์ขนาดกลางให้ทันสมัย
+                     เน้นความน่าเชื่อถือและ sustainability พร้อม Brand
+                     Application บน Signage และสื่อดิจิทัล
+                  </p>
+                  <div class="portfolio-footer">
+                     <div class="portfolio-tags">
+                        <span class="ptag teal">Rebrand</span>
+                        <span class="ptag teal">Corporate</span>
+                     </div>
+                     <div class="portfolio-links">
+                        <a href="#" class="plink" title="ดูงาน">↗</a>
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            <!-- featured: true, status: published -->
+            <div class="portfolio-card featured">
+               <div class="portfolio-cover cover-c">
+                  🍜
+                  <div class="featured-badge">⭐ Featured</div>
+               </div>
+               <div class="portfolio-body">
+                  <div class="portfolio-status-row">
+                     <span class="status-badge status-published"
+                        >Published</span
+                     >
+                  </div>
+                  <div class="portfolio-title">
+                     Sabthai — F&amp;B Brand Launch
+                  </div>
+                  <p class="portfolio-summary">
+                     สร้างแบรนด์ร้านอาหารไทยใหม่ตั้งแต่ศูนย์ ออกแบบ Logo, ป้าย,
+                     เมนู, Uniform, Social Media Template และทุก Touchpoint
+                     ของแบรนด์ภายใน 30 วัน
+                  </p>
+                  <div class="portfolio-footer">
+                     <div class="portfolio-tags">
+                        <span class="ptag rose">F&amp;B</span>
+                        <span class="ptag rose">Branding</span>
+                        <span class="ptag">Menu</span>
+                     </div>
+                     <div class="portfolio-links">
+                        <a href="#" class="plink" title="ดูงาน">↗</a>
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            <!-- status: published -->
+            <div class="portfolio-card">
+               <div class="portfolio-cover cover-d">📊</div>
+               <div class="portfolio-body">
+                  <div class="portfolio-status-row">
+                     <span class="status-badge status-published"
+                        >Published</span
+                     >
+                  </div>
+                  <div class="portfolio-title">
+                     TechStart Thailand — Annual Report 2024
+                  </div>
+                  <p class="portfolio-summary">
+                     ออกแบบ Annual Report 64 หน้า สำหรับบริษัทเทคโนโลยี
+                     รวมถึงการนำเสนอข้อมูลเชิงสถิติ Infographic และ Data
+                     Visualization ที่เข้าใจง่าย
+                  </p>
+                  <div class="portfolio-footer">
+                     <div class="portfolio-tags">
+                        <span class="ptag">Editorial</span>
+                        <span class="ptag teal">Infographic</span>
+                     </div>
+                     <div class="portfolio-links">
+                        <a href="#" class="plink" title="ดูงาน">↗</a>
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            <!-- status: published -->
+            <div class="portfolio-card">
+               <div class="portfolio-cover cover-e">🎓</div>
+               <div class="portfolio-body">
+                  <div class="portfolio-status-row">
+                     <span class="status-badge status-published"
+                        >Published</span
+                     >
+                  </div>
+                  <div class="portfolio-title">
+                     EduPath — E-Learning Platform Brand
+                  </div>
+                  <p class="portfolio-summary">
+                     ออกแบบแบรนด์และ UI Style Guide สำหรับแพลตฟอร์มเรียนออนไลน์
+                     ครอบคลุม Icon System, Color Tokens, และ Component Library
+                     สำหรับทีม Dev
+                  </p>
+                  <div class="portfolio-footer">
+                     <div class="portfolio-tags">
+                        <span class="ptag">UI Brand</span>
+                        <span class="ptag gold">EdTech</span>
+                     </div>
+                     <div class="portfolio-links">
+                        <a href="#" class="plink" title="ดูงาน">↗</a>
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            <!-- status: draft -->
+            <div class="portfolio-card">
+               <div class="portfolio-cover cover-f">🎵</div>
+               <div class="portfolio-body">
+                  <div class="portfolio-status-row">
+                     <span class="status-badge status-draft">Draft</span>
+                  </div>
+                  <div class="portfolio-title">
+                     SoundWave Records — Independent Label Identity
+                  </div>
+                  <p class="portfolio-summary">
+                     กำลังพัฒนา Visual Identity สำหรับค่ายเพลง Independent
+                     ที่เน้น Music NFT และ Digital Distribution เป็นหลัก
+                  </p>
+                  <div class="portfolio-footer">
+                     <div class="portfolio-tags">
+                        <span class="ptag rose">Music</span>
+                        <span class="ptag">Identity</span>
+                     </div>
+                     <div class="portfolio-links"></div>
+                  </div>
+               </div>
+            </div>
+         </div>
+      </section>
+
+      <!-- ─── CONTACT ─── -->
+      <!-- Data from: profiles (website_url, linkedin_url, twitter_url) -->
+      <section id="contact">
+         <div class="contact-inner">
+            <div
+               class="section-label"
+               style="justify-content: center; display: flex"
+            >
+               ติดต่อ
+            </div>
+            <h2 class="contact-headline">
+               มีโปรเจกต์ในใจ?<br /><span class="grad">มาคุยกัน</span>
+            </h2>
+            <p class="contact-sub">
+               พร้อมรับงานออกแบบและให้คำปรึกษาด้าน Brand Strategy
+               เปิดรับทั้งงานประจำและฟรีแลนซ์
+            </p>
+
+            <div class="contact-cards">
+               <a href="mailto:somchai@vexentra.co" class="contact-card">
+                  <div class="contact-card-icon">✉️</div>
+                  <div class="contact-card-label">อีเมล</div>
+                  <div class="contact-card-value">somchai@vexentra.co</div>
+               </a>
+               <a href="#" class="contact-card">
+                  <div class="contact-card-icon">💼</div>
+                  <div class="contact-card-label">LinkedIn</div>
+                  <div class="contact-card-value">linkedin.com/in/somchai</div>
+               </a>
+               <a href="#" class="contact-card">
+                  <div class="contact-card-icon">🎨</div>
+                  <div class="contact-card-label">Behance</div>
+                  <div class="contact-card-value">behance.net/somchai</div>
+               </a>
+               <a href="#" class="contact-card">
+                  <div class="contact-card-icon">📱</div>
+                  <div class="contact-card-label">Line</div>
+                  <div class="contact-card-value">@somchai.design</div>
+               </a>
+            </div>
+
+            <a
+               href="mailto:somchai@vexentra.co"
+               class="btn-primary"
+               style="font-size: 15px; padding: 13px 32px"
+            >
+               ส่งข้อความมาเลย ✉
+            </a>
+         </div>
+      </section>
+
+      <!-- ─── FOOTER ─── -->
+      <footer>
+         <span>สมชาย วงษ์สวรรค์ © 2025</span>
+         <span>Built with <a href="#">Vexentra</a> — Portfolio Platform</span>
+         <span>กรุงเทพฯ, ประเทศไทย</span>
+      </footer>
+   </body>
+</html>

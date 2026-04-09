@@ -13,17 +13,14 @@ import (
 // ─────────────────────────────────────────────────────────────────────
 
 type profileModel struct {
-	ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID      uuid.UUID `gorm:"type:uuid;uniqueIndex;not null"`
-	DisplayName string    `gorm:"size:100;column:display_name"`
-	Headline    string    `gorm:"column:headline"`
-	Bio         string    `gorm:"column:bio;type:text"`
-	Location    string    `gorm:"column:location"`
-	AvatarURL   string    `gorm:"column:avatar_url"`
-	WebsiteURL  string    `gorm:"column:website_url"`
-	GitHubURL   string    `gorm:"column:github_url"`
-	LinkedInURL string    `gorm:"column:linkedin_url"`
-	TwitterURL  string    `gorm:"column:twitter_url"`
+	ID          uuid.UUID         `gorm:"type:uuid;primaryKey"`
+	UserID      uuid.UUID         `gorm:"type:uuid;uniqueIndex;not null"`
+	DisplayName string            `gorm:"size:100;column:display_name"`
+	Headline    string            `gorm:"column:headline"`
+	Bio         string            `gorm:"column:bio;type:text"`
+	Location    string            `gorm:"column:location"`
+	AvatarURL   string            `gorm:"column:avatar_url"`
+	SocialLinks []socialLinkModel `gorm:"foreignKey:UserID;references:UserID"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -31,6 +28,10 @@ type profileModel struct {
 func (profileModel) TableName() string { return "profiles" }
 
 func (m *profileModel) ToEntity() *user.Profile {
+	links := make([]user.SocialLink, len(m.SocialLinks))
+	for i, l := range m.SocialLinks {
+		links[i] = *l.ToEntity()
+	}
 	return &user.Profile{
 		ID:          m.ID,
 		UserID:      m.UserID,
@@ -39,12 +40,39 @@ func (m *profileModel) ToEntity() *user.Profile {
 		Bio:         m.Bio,
 		Location:    m.Location,
 		AvatarURL:   m.AvatarURL,
-		WebsiteURL:  m.WebsiteURL,
-		GitHubURL:   m.GitHubURL,
-		LinkedInURL: m.LinkedInURL,
-		TwitterURL:  m.TwitterURL,
+		SocialLinks: links,
 		CreatedAt:   m.CreatedAt,
 		UpdatedAt:   m.UpdatedAt,
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Social Link Model (1:many with profiles via user_id)
+// ─────────────────────────────────────────────────────────────────────
+
+// socialLinkModel maps to the social_links table.
+// platform is one of the SocialPlatform* constants — enforced at service layer.
+type socialLinkModel struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID    uuid.UUID `gorm:"type:uuid;index;not null"`
+	Platform  string    `gorm:"size:30;column:platform;not null"`
+	URL       string    `gorm:"size:512;column:url;not null"`
+	SortOrder int       `gorm:"column:sort_order;default:0"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (socialLinkModel) TableName() string { return "social_links" }
+
+func (m *socialLinkModel) ToEntity() *user.SocialLink {
+	return &user.SocialLink{
+		ID:        m.ID,
+		UserID:    m.UserID,
+		Platform:  m.Platform,
+		URL:       m.URL,
+		SortOrder: m.SortOrder,
+		CreatedAt: m.CreatedAt,
+		UpdatedAt: m.UpdatedAt,
 	}
 }
 

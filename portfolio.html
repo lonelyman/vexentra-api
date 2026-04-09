@@ -1,0 +1,1201 @@
+<!doctype html>
+<html lang="th">
+   <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>nipon.k ~ portfolio</title>
+      <link
+         href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&family=Fira+Code:wght@300;400;500;600&display=swap"
+         rel="stylesheet"
+      />
+      <style>
+         :root {
+            --green: #00ff41;
+            --green-dim: #00cc33;
+            --green-dark: #003b00;
+            --green-glow: #00ff4166;
+            --bg: #050f05;
+            --bg2: #091209;
+            --bg3: #0d1a0d;
+            --amber: #ffb000;
+            --cyan: #00ffff;
+            --red: #ff3333;
+            --white: #c8ffc8;
+            --border: #00ff4133;
+         }
+
+         * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+         }
+
+         html {
+            scroll-behavior: smooth;
+         }
+
+         body {
+            background: var(--bg);
+            color: var(--green);
+            font-family: "Fira Code", monospace;
+            font-size: 14px;
+            line-height: 1.7;
+            cursor: default;
+            overflow-x: hidden;
+         }
+
+         /* CRT scan effect */
+         body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+               0deg,
+               transparent,
+               transparent 2px,
+               rgba(0, 0, 0, 0.08) 2px,
+               rgba(0, 0, 0, 0.08) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
+         }
+
+         /* CRT vignette */
+         body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(
+               ellipse at center,
+               transparent 60%,
+               rgba(0, 0, 0, 0.7) 100%
+            );
+            pointer-events: none;
+            z-index: 9998;
+         }
+
+         /* Noise overlay */
+         .noise {
+            position: fixed;
+            inset: 0;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9997;
+            animation: noiseAnim 0.2s steps(1) infinite;
+         }
+         @keyframes noiseAnim {
+            0% {
+               transform: translate(0, 0);
+            }
+            25% {
+               transform: translate(-2px, 1px);
+            }
+            50% {
+               transform: translate(2px, -1px);
+            }
+            75% {
+               transform: translate(-1px, 2px);
+            }
+            100% {
+               transform: translate(0, 0);
+            }
+         }
+
+         /* ── NAVBAR ── */
+         nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(5, 15, 5, 0.95);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 48px;
+            backdrop-filter: blur(8px);
+         }
+         .nav-logo {
+            font-family: "VT323", monospace;
+            font-size: 1.4rem;
+            color: var(--green);
+            text-shadow: 0 0 10px var(--green-glow);
+            letter-spacing: 2px;
+         }
+         .nav-logo span {
+            color: var(--amber);
+         }
+         nav ul {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+         }
+         nav ul a {
+            color: var(--green-dim);
+            text-decoration: none;
+            font-size: 12px;
+            letter-spacing: 1px;
+            transition:
+               color 0.2s,
+               text-shadow 0.2s;
+         }
+         nav ul a:hover {
+            color: var(--green);
+            text-shadow: 0 0 8px var(--green-glow);
+         }
+         nav ul a::before {
+            content: "./";
+            color: var(--amber);
+         }
+
+         /* ── HERO ── */
+         #hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 80px 6vw 60px;
+            position: relative;
+            overflow: hidden;
+         }
+
+         .matrix-bg {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            opacity: 0.07;
+            pointer-events: none;
+         }
+         .matrix-col {
+            position: absolute;
+            top: -100%;
+            font-family: "Share Tech Mono", monospace;
+            font-size: 13px;
+            color: var(--green);
+            white-space: nowrap;
+            writing-mode: vertical-rl;
+            animation: matrixFall linear infinite;
+         }
+         @keyframes matrixFall {
+            to {
+               transform: translateY(200vh);
+            }
+         }
+
+         .terminal-window {
+            background: var(--bg2);
+            border: 1px solid var(--green-dim);
+            border-radius: 4px;
+            max-width: 780px;
+            box-shadow:
+               0 0 40px rgba(0, 255, 65, 0.12),
+               0 0 80px rgba(0, 255, 65, 0.05);
+            position: relative;
+            z-index: 1;
+         }
+         .terminal-bar {
+            background: var(--bg3);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+         }
+         .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+         }
+         .dot-r {
+            background: #ff5f56;
+         }
+         .dot-y {
+            background: #ffbd2e;
+         }
+         .dot-g {
+            background: #27c93f;
+         }
+         .terminal-title {
+            margin-left: 8px;
+            font-size: 11px;
+            color: #4a7a4a;
+            letter-spacing: 1px;
+         }
+         .terminal-body {
+            padding: 28px 32px;
+         }
+         .t-line {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 6px;
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+         }
+         .t-line:nth-child(1) {
+            animation-delay: 0.2s;
+         }
+         .t-line:nth-child(2) {
+            animation-delay: 0.6s;
+         }
+         .t-line:nth-child(3) {
+            animation-delay: 1s;
+         }
+         .t-line:nth-child(4) {
+            animation-delay: 1.4s;
+         }
+         .t-line:nth-child(5) {
+            animation-delay: 1.8s;
+         }
+         .t-line:nth-child(6) {
+            animation-delay: 2.2s;
+         }
+         .t-line:nth-child(7) {
+            animation-delay: 2.6s;
+         }
+         .t-line:nth-child(8) {
+            animation-delay: 3s;
+         }
+
+         @keyframes fadeIn {
+            from {
+               opacity: 0;
+               transform: translateY(4px);
+            }
+            to {
+               opacity: 1;
+               transform: translateY(0);
+            }
+         }
+
+         .prompt {
+            color: var(--amber);
+            flex-shrink: 0;
+         }
+         .cmd {
+            color: var(--cyan);
+         }
+         .out {
+            color: var(--white);
+         }
+
+         .big-name {
+            font-family: "VT323", monospace;
+            font-size: clamp(2.8rem, 7vw, 5rem);
+            color: var(--green);
+            text-shadow:
+               0 0 20px var(--green-glow),
+               0 0 40px rgba(0, 255, 65, 0.2);
+            letter-spacing: 4px;
+            line-height: 1.1;
+            margin: 4px 0;
+         }
+         .job-title {
+            color: var(--amber);
+            font-size: 13px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+         }
+         .blink {
+            animation: blink 1s step-end infinite;
+            color: var(--green);
+         }
+         @keyframes blink {
+            50% {
+               opacity: 0;
+            }
+         }
+
+         /* ── SECTION SHARED ── */
+         section {
+            padding: 80px 6vw;
+         }
+         .section-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 48px;
+         }
+         .section-num {
+            font-family: "VT323", monospace;
+            font-size: 1.1rem;
+            color: var(--amber);
+         }
+         .section-title {
+            font-family: "VT323", monospace;
+            font-size: 2rem;
+            color: var(--green);
+            text-shadow: 0 0 12px var(--green-glow);
+            letter-spacing: 3px;
+         }
+         .section-line {
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, var(--green-dim), transparent);
+         }
+
+         /* ── SKILLS ── */
+         #skills {
+            background: var(--bg2);
+         }
+
+         .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+         }
+         .skill-card {
+            border: 1px solid var(--border);
+            background: var(--bg);
+            padding: 20px 24px;
+            position: relative;
+            transition:
+               border-color 0.3s,
+               box-shadow 0.3s;
+         }
+         .skill-card:hover {
+            border-color: var(--green-dim);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
+         }
+         .skill-card::before {
+            content: attr(data-cat);
+            position: absolute;
+            top: -10px;
+            left: 12px;
+            background: var(--bg);
+            padding: 0 8px;
+            font-size: 10px;
+            color: var(--amber);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+         }
+         .skill-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+         }
+         .tag {
+            display: inline-block;
+            padding: 3px 10px;
+            font-size: 11px;
+            letter-spacing: 1px;
+            border: 1px solid;
+            transition: all 0.2s;
+         }
+         .tag-green {
+            border-color: var(--green-dim);
+            color: var(--green-dim);
+         }
+         .tag-amber {
+            border-color: #ffb00066;
+            color: var(--amber);
+         }
+         .tag-cyan {
+            border-color: #00ffff44;
+            color: var(--cyan);
+         }
+         .tag-red {
+            border-color: #ff333344;
+            color: var(--red);
+         }
+         .tag:hover {
+            background: rgba(0, 255, 65, 0.08);
+            border-color: var(--green);
+            color: var(--green);
+         }
+
+         .skill-bar-row {
+            margin-top: 10px;
+         }
+         .skill-bar-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin-bottom: 4px;
+         }
+         .skill-bar-label span:last-child {
+            color: var(--amber);
+         }
+         .skill-bar-bg {
+            height: 6px;
+            background: #111;
+            border: 1px solid var(--border);
+            overflow: hidden;
+         }
+         .skill-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--green-dark), var(--green));
+            box-shadow: 0 0 6px var(--green-glow);
+            width: 0;
+            transition: width 1.2s cubic-bezier(0.23, 1, 0.32, 1);
+         }
+
+         /* ── PROJECTS ── */
+         #projects {
+         }
+         .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+         }
+         .project-card {
+            border: 1px solid var(--border);
+            background: var(--bg2);
+            padding: 0;
+            overflow: hidden;
+            transition:
+               border-color 0.3s,
+               box-shadow 0.3s,
+               transform 0.3s;
+            position: relative;
+         }
+         .project-card:hover {
+            border-color: var(--green-dim);
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.12);
+            transform: translateY(-3px);
+         }
+         .project-card-top {
+            padding: 20px 22px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+         }
+         .project-icon {
+            font-size: 1.8rem;
+            line-height: 1;
+         }
+         .project-status {
+            font-size: 10px;
+            letter-spacing: 1px;
+            padding: 2px 8px;
+            border: 1px solid;
+         }
+         .status-active {
+            border-color: var(--green);
+            color: var(--green);
+         }
+         .status-prod {
+            border-color: var(--cyan);
+            color: var(--cyan);
+         }
+         .status-wip {
+            border-color: var(--amber);
+            color: var(--amber);
+         }
+         .project-body {
+            padding: 18px 22px;
+         }
+         .project-name {
+            font-family: "VT323", monospace;
+            font-size: 1.5rem;
+            color: var(--green);
+            text-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+            letter-spacing: 2px;
+            margin-bottom: 6px;
+         }
+         .project-desc {
+            color: #78a878;
+            font-size: 12px;
+            line-height: 1.6;
+            margin-bottom: 14px;
+         }
+         .project-footer {
+            padding: 12px 22px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+         }
+
+         /* ── FUN EXTRAS ── */
+         #extras {
+            background: var(--bg2);
+         }
+         .extras-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+         }
+         .extra-card {
+            border: 1px solid var(--border);
+            background: var(--bg);
+            padding: 24px 20px;
+            text-align: center;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+         }
+         .extra-card::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--green);
+            transform: scaleX(0);
+            transition: transform 0.3s;
+         }
+         .extra-card:hover::after {
+            transform: scaleX(1);
+         }
+         .extra-card:hover {
+            border-color: var(--green-dim);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.08);
+         }
+         .extra-icon {
+            font-size: 2.2rem;
+            margin-bottom: 12px;
+         }
+         .extra-label {
+            font-family: "VT323", monospace;
+            font-size: 1.3rem;
+            color: var(--green);
+            letter-spacing: 2px;
+            margin-bottom: 6px;
+         }
+         .extra-desc {
+            font-size: 11px;
+            color: #4a7a4a;
+            line-height: 1.6;
+         }
+
+         /* ASCII art  */
+         .ascii-block {
+            margin: 0 auto 40px;
+            max-width: 600px;
+            text-align: center;
+         }
+         .ascii-art {
+            font-family: "Share Tech Mono", monospace;
+            font-size: 11px;
+            color: var(--green-dark);
+            line-height: 1.2;
+            text-shadow: 0 0 4px rgba(0, 255, 65, 0.15);
+            white-space: pre;
+         }
+
+         /* ── CONTACT ── */
+         #contact {
+            text-align: center;
+         }
+         .contact-box {
+            max-width: 600px;
+            margin: 0 auto;
+         }
+         .contact-tagline {
+            font-family: "VT323", monospace;
+            font-size: 1.8rem;
+            color: var(--amber);
+            letter-spacing: 3px;
+            margin-bottom: 32px;
+         }
+         .contact-links {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 48px;
+         }
+         .contact-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border: 1px solid var(--green-dim);
+            color: var(--green-dim);
+            text-decoration: none;
+            font-size: 12px;
+            letter-spacing: 1px;
+            transition: all 0.25s;
+            font-family: "Fira Code", monospace;
+         }
+         .contact-btn:hover {
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(0, 255, 65, 0.06);
+            box-shadow: 0 0 14px rgba(0, 255, 65, 0.15);
+         }
+         .contact-btn .icon {
+            font-size: 1rem;
+         }
+
+         /* mini terminal */
+         .mini-terminal {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            padding: 20px 24px;
+            text-align: left;
+            font-size: 12px;
+            color: #4a7a4a;
+            max-width: 600px;
+            margin: 0 auto;
+         }
+         .mini-terminal .p {
+            color: var(--amber);
+         }
+         .mini-terminal .v {
+            color: var(--white);
+         }
+         .mini-terminal .c {
+            color: var(--cyan);
+         }
+
+         /* footer */
+         footer {
+            border-top: 1px solid var(--border);
+            padding: 20px 6vw;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: #2a4a2a;
+         }
+         footer span {
+            color: var(--green-dim);
+         }
+
+         /* scrollbar */
+         ::-webkit-scrollbar {
+            width: 6px;
+         }
+         ::-webkit-scrollbar-track {
+            background: var(--bg);
+         }
+         ::-webkit-scrollbar-thumb {
+            background: var(--green-dark);
+         }
+         ::-webkit-scrollbar-thumb:hover {
+            background: var(--green-dim);
+         }
+      </style>
+   </head>
+   <body>
+      <div class="noise"></div>
+
+      <!-- NAVBAR -->
+      <nav>
+         <div class="nav-logo">nipon<span>@</span>dev<span>:~$</span></div>
+         <ul>
+            <li><a href="#skills">skills</a></li>
+            <li><a href="#projects">projects</a></li>
+            <li><a href="#extras">more</a></li>
+            <li><a href="#contact">contact</a></li>
+         </ul>
+      </nav>
+
+      <!-- HERO -->
+      <section id="hero">
+         <!-- Matrix rain bg -->
+         <div class="matrix-bg" id="matrix"></div>
+
+         <div class="terminal-window">
+            <div class="terminal-bar">
+               <div class="dot dot-r"></div>
+               <div class="dot dot-y"></div>
+               <div class="dot dot-g"></div>
+               <span class="terminal-title">bash — nipon@dev: ~/portfolio</span>
+            </div>
+            <div class="terminal-body">
+               <div class="t-line">
+                  <span class="prompt">nipon@dev:~$</span>
+                  <span class="cmd">whoami</span>
+               </div>
+               <div class="t-line">
+                  <span class="out">
+                     <div class="big-name">NIPON KONSANTEAR</div>
+                  </span>
+               </div>
+               <div class="t-line">
+                  <span class="prompt">nipon@dev:~$</span>
+                  <span class="cmd">cat role.txt</span>
+               </div>
+               <div class="t-line">
+                  <span class="out job-title"
+                     >▸ Go Backend Developer &amp; PHP Developer</span
+                  >
+               </div>
+               <div class="t-line">
+                  <span class="prompt">nipon@dev:~$</span>
+                  <span class="cmd">cat interests.txt</span>
+               </div>
+               <div class="t-line">
+                  <span class="out" style="color: #78a878"
+                     >IoT Automation · SmartFarm · Backend Architecture · ERP
+                     Integration</span
+                  >
+               </div>
+               <div class="t-line">
+                  <span class="prompt">nipon@dev:~$</span>
+                  <span class="cmd">cat location.txt</span>
+               </div>
+               <div class="t-line">
+                  <span class="out" style="color: #78a878"
+                     >🇹🇭 Thailand · Nutrition Profess Co., Ltd.</span
+                  >
+               </div>
+               <div class="t-line" style="animation-delay: 3.4s; opacity: 0">
+                  <span class="prompt">nipon@dev:~$</span>
+                  <span class="blink">█</span>
+               </div>
+            </div>
+         </div>
+      </section>
+
+      <!-- SKILLS -->
+      <section id="skills">
+         <div class="section-header">
+            <span class="section-num">01</span>
+            <h2 class="section-title">SKILLS &amp; TECH STACK</h2>
+            <div class="section-line"></div>
+         </div>
+
+         <div class="skills-grid">
+            <div class="skill-card" data-cat="Backend">
+               <div class="skill-bar-row">
+                  <div class="skill-bar-label">
+                     <span>Go / Fiber</span><span>90%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="90"></div>
+                  </div>
+               </div>
+               <div class="skill-bar-row" style="margin-top: 10px">
+                  <div class="skill-bar-label">
+                     <span>PHP</span><span>80%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="80"></div>
+                  </div>
+               </div>
+               <div class="skill-bar-row" style="margin-top: 10px">
+                  <div class="skill-bar-label">
+                     <span>REST API Design</span><span>88%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="88"></div>
+                  </div>
+               </div>
+               <div class="skill-tags" style="margin-top: 14px">
+                  <span class="tag tag-green">GORM</span>
+                  <span class="tag tag-green">Fiber</span>
+                  <span class="tag tag-green">goroutines</span>
+                  <span class="tag tag-amber">FreeRTOS</span>
+               </div>
+            </div>
+
+            <div class="skill-card" data-cat="Database">
+               <div class="skill-bar-row">
+                  <div class="skill-bar-label">
+                     <span>PostgreSQL</span><span>85%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="85"></div>
+                  </div>
+               </div>
+               <div class="skill-bar-row" style="margin-top: 10px">
+                  <div class="skill-bar-label">
+                     <span>SQL Server</span><span>75%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="75"></div>
+                  </div>
+               </div>
+               <div class="skill-bar-row" style="margin-top: 10px">
+                  <div class="skill-bar-label">
+                     <span>Redis</span><span>80%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="80"></div>
+                  </div>
+               </div>
+               <div class="skill-tags" style="margin-top: 14px">
+                  <span class="tag tag-cyan">pgBackRest</span>
+                  <span class="tag tag-cyan">PITR</span>
+                  <span class="tag tag-cyan">Caching</span>
+               </div>
+            </div>
+
+            <div class="skill-card" data-cat="IoT / Embedded">
+               <div class="skill-bar-row">
+                  <div class="skill-bar-label">
+                     <span>ESP32 / ESP32-S3</span><span>82%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="82"></div>
+                  </div>
+               </div>
+               <div class="skill-bar-row" style="margin-top: 10px">
+                  <div class="skill-bar-label">
+                     <span>C++ / PlatformIO</span><span>75%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="75"></div>
+                  </div>
+               </div>
+               <div class="skill-bar-row" style="margin-top: 10px">
+                  <div class="skill-bar-label">
+                     <span>Hardware Design</span><span>70%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="70"></div>
+                  </div>
+               </div>
+               <div class="skill-tags" style="margin-top: 14px">
+                  <span class="tag tag-amber">I2C / UART</span>
+                  <span class="tag tag-amber">SSR</span>
+                  <span class="tag tag-amber">BH1750</span>
+                  <span class="tag tag-amber">DHT22</span>
+               </div>
+            </div>
+
+            <div class="skill-card" data-cat="DevOps / Tools">
+               <div class="skill-bar-row">
+                  <div class="skill-bar-label">
+                     <span>Docker</span><span>78%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="78"></div>
+                  </div>
+               </div>
+               <div class="skill-bar-row" style="margin-top: 10px">
+                  <div class="skill-bar-label">
+                     <span>Git / GitLab</span><span>85%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="85"></div>
+                  </div>
+               </div>
+               <div class="skill-bar-row" style="margin-top: 10px">
+                  <div class="skill-bar-label">
+                     <span>Linux / Bash</span><span>75%</span>
+                  </div>
+                  <div class="skill-bar-bg">
+                     <div class="skill-bar-fill" data-w="75"></div>
+                  </div>
+               </div>
+               <div class="skill-tags" style="margin-top: 14px">
+                  <span class="tag tag-red">CI/CD</span>
+                  <span class="tag tag-red">GitLab</span>
+                  <span class="tag tag-red">SSH</span>
+               </div>
+            </div>
+         </div>
+      </section>
+
+      <!-- PROJECTS -->
+      <section id="projects">
+         <div class="section-header">
+            <span class="section-num">02</span>
+            <h2 class="section-title">PROJECTS</h2>
+            <div class="section-line"></div>
+         </div>
+
+         <div class="projects-grid">
+            <div class="project-card">
+               <div class="project-card-top">
+                  <div class="project-icon">🌿</div>
+                  <span class="project-status status-active">● ACTIVE</span>
+               </div>
+               <div class="project-body">
+                  <div class="project-name">SmartFarm_POC</div>
+                  <div class="project-desc">
+                     ระบบ IoT อัตโนมัติสำหรับฟาร์มไฮโดรโปนิกมะเขือเทศ
+                     ควบคุมสภาพแวดล้อม แสง น้ำ ความชื้น ผ่าน ESP32-S3 พร้อม
+                     WebUI Dashboard แบบ Real-time
+                  </div>
+               </div>
+               <div class="project-footer">
+                  <span class="tag tag-amber">ESP32-S3</span>
+                  <span class="tag tag-green">FreeRTOS</span>
+                  <span class="tag tag-cyan">BH1750</span>
+                  <span class="tag tag-green">PlatformIO</span>
+               </div>
+            </div>
+
+            <div class="project-card">
+               <div class="project-card-top">
+                  <div class="project-icon">📦</div>
+                  <span class="project-status status-prod">● PRODUCTION</span>
+               </div>
+               <div class="project-body">
+                  <div class="project-name">Order Management System</div>
+                  <div class="project-desc">
+                     ระบบจัดการออร์เดอร์ (OMS) เชื่อมต่อกับ BPlus ERP รองรับ
+                     multi-database (PostgreSQL + SQL Server), Redis caching,
+                     Dashboard analytics
+                  </div>
+               </div>
+               <div class="project-footer">
+                  <span class="tag tag-green">Go / Fiber</span>
+                  <span class="tag tag-cyan">PostgreSQL</span>
+                  <span class="tag tag-red">SQL Server</span>
+                  <span class="tag tag-amber">Redis</span>
+               </div>
+            </div>
+
+            <div class="project-card">
+               <div class="project-card-top">
+                  <div class="project-icon">🔌</div>
+                  <span class="project-status status-active">● ACTIVE</span>
+               </div>
+               <div class="project-body">
+                  <div class="project-name">SmartFarm Control Panel</div>
+                  <div class="project-desc">
+                     ออกแบบแผงควบคุมไฟฟ้า DIN Rail สำหรับฟาร์ม ครอบคลุม wiring
+                     standard 12-color, SSR-40DA, HLK-10M03 PSU ในกล่อง
+                     NANO-103G
+                  </div>
+               </div>
+               <div class="project-footer">
+                  <span class="tag tag-amber">Hardware</span>
+                  <span class="tag tag-red">SSR-40DA</span>
+                  <span class="tag tag-cyan">IEC Wiring</span>
+                  <span class="tag tag-green">DIN Rail</span>
+               </div>
+            </div>
+
+            <div class="project-card">
+               <div class="project-card-top">
+                  <div class="project-icon">🔒</div>
+                  <span class="project-status status-prod">● PRODUCTION</span>
+               </div>
+               <div class="project-body">
+                  <div class="project-name">DB Backup System</div>
+                  <div class="project-desc">
+                     ระบบ PostgreSQL backup ด้วย pgBackRest รองรับ PITR, WAL
+                     archiving, Incremental backup พร้อม Ransomware protection
+                     แบบ 3-2-1
+                  </div>
+               </div>
+               <div class="project-footer">
+                  <span class="tag tag-cyan">pgBackRest</span>
+                  <span class="tag tag-green">PostgreSQL</span>
+                  <span class="tag tag-amber">S3</span>
+                  <span class="tag tag-red">PITR</span>
+               </div>
+            </div>
+         </div>
+      </section>
+
+      <!-- EXTRAS -->
+      <section id="extras">
+         <div class="section-header">
+            <span class="section-num">03</span>
+            <h2 class="section-title">MORE ABOUT ME</h2>
+            <div class="section-line"></div>
+         </div>
+
+         <div class="ascii-block">
+            <pre class="ascii-art">
+  ██████╗ ███████╗██╗   ██╗
+  ██╔══██╗██╔════╝██║   ██║
+  ██║  ██║█████╗  ██║   ██║
+  ██║  ██║██╔══╝  ╚██╗ ██╔╝
+  ██████╔╝███████╗ ╚████╔╝
+  ╚═════╝ ╚══════╝  ╚═══╝  — nipon.k
+    </pre
+            >
+         </div>
+
+         <div class="extras-grid">
+            <div class="extra-card">
+               <div class="extra-icon">⚡</div>
+               <div class="extra-label">BACKEND FIRST</div>
+               <div class="extra-desc">
+                  หลงใหล Go, clean architecture, และการออกแบบระบบที่ scale
+                  ได้จริง
+               </div>
+            </div>
+            <div class="extra-card">
+               <div class="extra-icon">🌱</div>
+               <div class="extra-label">IoT MAKER</div>
+               <div class="extra-desc">
+                  ชื่นชอบการ solder, wiring, และสร้าง hardware ตั้งแต่ prototype
+                  ถึง production
+               </div>
+            </div>
+            <div class="extra-card">
+               <div class="extra-icon">🧠</div>
+               <div class="extra-label">AI EXPLORER</div>
+               <div class="extra-desc">
+                  ศึกษา On-Premise LLM, RAG, MCP Server สำหรับองค์กร
+               </div>
+            </div>
+            <div class="extra-card">
+               <div class="extra-icon">🔧</div>
+               <div class="extra-label">PROBLEM SOLVER</div>
+               <div class="extra-desc">
+                  ชอบ debug ปัญหาซับซ้อน ตั้งแต่ Git reflog ไปถึง ERP
+                  integration
+               </div>
+            </div>
+            <div class="extra-card">
+               <div class="extra-icon">📐</div>
+               <div class="extra-label">CLEAN CODE</div>
+               <div class="extra-desc">
+                  เชื่อใน minimal, surgical code changes — ไม่ over-engineer
+                  โดยไม่จำเป็น
+               </div>
+            </div>
+            <div class="extra-card">
+               <div class="extra-icon">🚀</div>
+               <div class="extra-label">ALWAYS LEARNING</div>
+               <div class="extra-desc">
+                  ตามกระแส tech ใหม่ๆ อยู่เสมอ ไม่ว่าจะเป็น vLLM, Claude Code
+                  หรือ LangGraph
+               </div>
+            </div>
+         </div>
+      </section>
+
+      <!-- CONTACT -->
+      <section id="contact">
+         <div
+            class="section-header"
+            style="
+               justify-content: center;
+               text-align: center;
+               flex-direction: column;
+               gap: 8px;
+            "
+         >
+            <span class="section-num">04</span>
+            <h2 class="section-title">CONTACT</h2>
+         </div>
+
+         <div class="contact-box">
+            <div class="contact-tagline">LET'S BUILD SOMETHING COOL</div>
+
+            <div class="contact-links">
+               <a href="mailto:nipon@example.com" class="contact-btn">
+                  <span class="icon">✉</span> email
+               </a>
+               <a
+                  href="https://github.com/lonelyman"
+                  class="contact-btn"
+                  target="_blank"
+               >
+                  <span class="icon">⌥</span> github
+               </a>
+               <a href="#" class="contact-btn">
+                  <span class="icon">💼</span> linkedin
+               </a>
+               <a href="#" class="contact-btn">
+                  <span class="icon">📱</span> line id
+               </a>
+            </div>
+
+            <div class="mini-terminal">
+               <div>
+                  $ <span class="p">ping</span> <span class="v">nipon.k</span>
+               </div>
+               <div style="margin-top: 8px; color: #2a4a2a">
+                  PING nipon.k: 56 data bytes
+               </div>
+               <div style="color: #2a4a2a">
+                  64 bytes from nipon.k: seq=0 time=<span class="c">0.3ms</span>
+               </div>
+               <div style="color: #2a4a2a">
+                  64 bytes from nipon.k: seq=1 time=<span class="c">0.2ms</span>
+               </div>
+               <div style="margin-top: 8px">
+                  <span class="p">status</span>:
+                  <span style="color: var(--green)">● ONLINE</span> · open to
+                  collaborate
+               </div>
+            </div>
+         </div>
+      </section>
+
+      <!-- FOOTER -->
+      <footer>
+         <span>nipon.k © 2025</span>
+         <span style="color: #2a4a2a">// built with ❤️ + caffeine + Go</span>
+         <span style="font-size: 10px; color: #1a3a1a">[EOF]</span>
+      </footer>
+
+      <script>
+         // Matrix rain
+         const matrixEl = document.getElementById("matrix");
+         const chars =
+            "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF";
+         for (let i = 0; i < 30; i++) {
+            const col = document.createElement("div");
+            col.className = "matrix-col";
+            col.style.left = Math.random() * 100 + "%";
+            col.style.animationDuration = 8 + Math.random() * 12 + "s";
+            col.style.animationDelay = -Math.random() * 15 + "s";
+            col.style.fontSize = 10 + Math.random() * 4 + "px";
+            let text = "";
+            for (let j = 0; j < 40; j++)
+               text += chars[Math.floor(Math.random() * chars.length)] + "\n";
+            col.textContent = text;
+            matrixEl.appendChild(col);
+         }
+
+         // Skill bar animation on scroll
+         const observer = new IntersectionObserver(
+            (entries) => {
+               entries.forEach((entry) => {
+                  if (entry.isIntersecting) {
+                     entry.target
+                        .querySelectorAll(".skill-bar-fill")
+                        .forEach((bar) => {
+                           bar.style.width = bar.dataset.w + "%";
+                        });
+                  }
+               });
+            },
+            { threshold: 0.2 },
+         );
+
+         document
+            .querySelectorAll(".skill-card")
+            .forEach((el) => observer.observe(el));
+
+         // Typing effect for terminal tagline
+         const tagline = document.querySelector(".contact-tagline");
+         if (tagline) {
+            const text = tagline.textContent;
+            tagline.textContent = "";
+            let i = 0;
+            const typeInterval = setInterval(() => {
+               if (i < text.length) {
+                  tagline.textContent += text[i++];
+               } else {
+                  clearInterval(typeInterval);
+               }
+            }, 60);
+
+            const obs2 = new IntersectionObserver((entries) => {
+               entries.forEach((e) => {
+                  if (e.isIntersecting) {
+                     i = 0;
+                     tagline.textContent = "";
+                  }
+               });
+            });
+            obs2.observe(tagline);
+         }
+
+         // Glitch effect on name hover
+         const bigName = document.querySelector(".big-name");
+         if (bigName) {
+            bigName.addEventListener("mouseenter", () => {
+               bigName.style.textShadow =
+                  "2px 0 #ff0000, -2px 0 #00ffff, 0 0 20px var(--green-glow)";
+               setTimeout(() => {
+                  bigName.style.textShadow =
+                     "0 0 20px var(--green-glow), 0 0 40px rgba(0,255,65,0.2)";
+               }, 150);
+            });
+         }
+      </script>
+   </body>
+</html>

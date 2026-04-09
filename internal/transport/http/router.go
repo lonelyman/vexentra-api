@@ -5,6 +5,7 @@ import (
 	authhdl "vexentra-api/internal/transport/http/auth"
 	healthhdl "vexentra-api/internal/transport/http/health"
 	"vexentra-api/internal/transport/http/middlewares"
+	socialplatformhdl "vexentra-api/internal/transport/http/socialplatform"
 	userhdl "vexentra-api/internal/transport/http/user"
 	"vexentra-api/pkg/auth"
 
@@ -12,11 +13,12 @@ import (
 )
 
 type Handlers struct {
-	User    *userhdl.UserHandler
-	Profile *userhdl.ProfileHandler
-	Auth    *authhdl.AuthHandler
-	Health  *healthhdl.HealthHandler
-	AuthSvc auth.AuthService
+	User           *userhdl.UserHandler
+	Profile        *userhdl.ProfileHandler
+	SocialPlatform *socialplatformhdl.SocialPlatformHandler
+	Auth           *authhdl.AuthHandler
+	Health         *healthhdl.HealthHandler
+	AuthSvc        auth.AuthService
 }
 
 func SetupRouter(app *fiber.App, h Handlers) {
@@ -58,4 +60,13 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Post("/me/portfolio", h.Profile.AddPortfolioItem)
 	protected.Put("/me/portfolio/:itemID", h.Profile.UpdatePortfolioItem)
 	protected.Delete("/me/portfolio/:itemID", h.Profile.RemovePortfolioItem)
+
+	protected.Put("/me/social-links/:platform", h.Profile.UpsertSocialLink)
+	protected.Delete("/me/social-links/:linkID", h.Profile.DeleteSocialLink)
+
+	// Social Platforms — master data (public read, protected write)
+	api.Get("/social-platforms", h.SocialPlatform.List)
+	protected.Post("/social-platforms", h.SocialPlatform.Create)
+	protected.Put("/social-platforms/:id", h.SocialPlatform.Update)
+	protected.Delete("/social-platforms/:id", h.SocialPlatform.Delete)
 }

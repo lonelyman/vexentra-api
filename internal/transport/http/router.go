@@ -34,6 +34,9 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	api.Post("/users/register", h.User.Register)
 	api.Post("/auth/login", h.Auth.Login)
 	api.Post("/auth/refresh", h.Auth.RefreshToken)
+	api.Get("/auth/verify-email", h.Auth.VerifyEmail)
+	api.Post("/auth/forgot-password", h.Auth.ForgotPassword)
+	api.Post("/auth/reset-password", h.Auth.ResetPassword)
 
 	// Showcase — no login required; returns profile of the pre-configured showcase user
 	api.Get("/showcase", h.Profile.GetShowcase)
@@ -43,6 +46,8 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Get("/me", h.User.GetProfile)
 	protected.Get("/users", h.User.ListUsers)
 	protected.Post("/auth/logout", h.Auth.Logout)
+	protected.Post("/auth/resend-verify", h.Auth.ResendVerifyEmail)
+	protected.Put("/me/password", h.User.ChangePassword)
 
 	// Profile & Portfolio — view any user's full profile (login required)
 	protected.Get("/users/:id/profile", h.Profile.GetPublicProfile)
@@ -61,8 +66,9 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Put("/me/portfolio/:itemID", h.Profile.UpdatePortfolioItem)
 	protected.Delete("/me/portfolio/:itemID", h.Profile.RemovePortfolioItem)
 
-	protected.Put("/me/social-links/:platform", h.Profile.UpsertSocialLink)
+	protected.Put("/me/social-links/:platformID", h.Profile.UpsertSocialLink)
 	protected.Delete("/me/social-links/:linkID", h.Profile.DeleteSocialLink)
+	protected.Get("/me/social-links", h.Profile.GetSocialLinks)
 
 	// Social Platforms — master data (public read, protected write)
 	api.Get("/social-platforms", h.SocialPlatform.List)

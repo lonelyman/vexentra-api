@@ -51,28 +51,28 @@ func (m *profileModel) ToEntity() *user.Profile {
 // ─────────────────────────────────────────────────────────────────────
 
 // socialLinkModel maps to the social_links table.
-// platform is one of the SocialPlatform* constants — enforced at service layer.
+// PlatformID is a FK referencing social_platforms.id — one platform per user.
 type socialLinkModel struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID    uuid.UUID `gorm:"type:uuid;index;not null"`
-	Platform  string    `gorm:"size:30;column:platform;not null"`
-	URL       string    `gorm:"size:512;column:url;not null"`
-	SortOrder int       `gorm:"column:sort_order;default:0"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID     uuid.UUID `gorm:"type:uuid;uniqueIndex:idx_social_links_user_platform;not null"`
+	PlatformID uuid.UUID `gorm:"type:uuid;uniqueIndex:idx_social_links_user_platform;not null"`
+	URL        string    `gorm:"size:512;column:url;not null"`
+	SortOrder  int       `gorm:"column:sort_order;default:0"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 func (socialLinkModel) TableName() string { return "social_links" }
 
 func (m *socialLinkModel) ToEntity() *user.SocialLink {
 	return &user.SocialLink{
-		ID:        m.ID,
-		UserID:    m.UserID,
-		Platform:  m.Platform,
-		URL:       m.URL,
-		SortOrder: m.SortOrder,
-		CreatedAt: m.CreatedAt,
-		UpdatedAt: m.UpdatedAt,
+		ID:         m.ID,
+		UserID:     m.UserID,
+		PlatformID: m.PlatformID,
+		URL:        m.URL,
+		SortOrder:  m.SortOrder,
+		CreatedAt:  m.CreatedAt,
+		UpdatedAt:  m.UpdatedAt,
 	}
 }
 

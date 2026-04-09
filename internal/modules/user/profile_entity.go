@@ -21,15 +21,15 @@ type Profile struct {
 }
 
 // SocialLink is a single social/contact link belonging to a user's profile.
-// Platform references a key in the master_social_platforms table.
+// PlatformID is a foreign key referencing social_platforms.id.
 type SocialLink struct {
-	ID        uuid.UUID
-	UserID    uuid.UUID
-	Platform  string // key from master_social_platforms.key
-	URL       string
-	SortOrder int
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	PlatformID uuid.UUID // FK → social_platforms.id
+	URL        string
+	SortOrder  int
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // Skill category constants.

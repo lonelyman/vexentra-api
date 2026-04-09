@@ -113,10 +113,10 @@ func (r *profileRepository) ListSocialLinks(ctx context.Context, userID uuid.UUI
 }
 
 func (r *profileRepository) UpsertSocialLink(ctx context.Context, l *user.SocialLink) error {
-	// one platform per user — upsert by (user_id, platform)
+	// one platform per user — upsert by (user_id, platform_id)
 	var existing socialLinkModel
 	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND platform = ?", l.UserID, l.Platform).
+		Where("user_id = ? AND platform_id = ?", l.UserID, l.PlatformID).
 		First(&existing).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -126,11 +126,11 @@ func (r *profileRepository) UpsertSocialLink(ctx context.Context, l *user.Social
 		}
 		l.ID = id
 		m := &socialLinkModel{
-			ID:        l.ID,
-			UserID:    l.UserID,
-			Platform:  l.Platform,
-			URL:       l.URL,
-			SortOrder: l.SortOrder,
+			ID:         l.ID,
+			UserID:     l.UserID,
+			PlatformID: l.PlatformID,
+			URL:        l.URL,
+			SortOrder:  l.SortOrder,
 		}
 		if createErr := r.db.WithContext(ctx).Create(m).Error; createErr != nil {
 			r.logger.Error("DB_CREATE_SOCIAL_LINK_ERROR", createErr)

@@ -55,7 +55,6 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	return presenter.RenderItem(c, LoginResponse{
 		UserID:       result.User.ID.String(),
 		Email:        result.User.Email,
-		DisplayName:  result.User.DisplayName,
 		Role:         "user",
 		AccessToken:  result.TokenPair.AccessToken,
 		RefreshToken: result.TokenPair.RefreshToken,

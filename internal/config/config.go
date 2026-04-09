@@ -22,6 +22,7 @@ type AppConfig struct {
 	AppPort            string
 	Timezone           string
 	CORSAllowedOrigins []string // comma-separated via API_CORS_ALLOWED_ORIGINS
+	ShowcaseUserID     string   // optional: fixed user ID for public showcase endpoint
 }
 
 type PostgresDbs struct {
@@ -68,6 +69,7 @@ func LoadConfig() (*Config, error) {
 			AppPort:            mustGetEnv("API_PORT", &missingKeys),
 			Timezone:           getEnv("API_TIMEZONE", "Asia/Bangkok"),
 			CORSAllowedOrigins: getEnvAsSlice("API_CORS_ALLOWED_ORIGINS", []string{"*"}),
+			ShowcaseUserID:     getEnv("APP_SHOWCASE_USER_ID", ""),
 		},
 		Postgres: PostgresDbs{
 			Primary: PostgresConfig{

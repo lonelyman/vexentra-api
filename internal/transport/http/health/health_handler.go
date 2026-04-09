@@ -30,6 +30,10 @@ func NewHealthHandler(db *gorm.DB, rdb *redis.Client) *HealthHandler {
 // Live handles GET /health/live
 // Only checks that the process is running — never touches DB or Redis.
 // Used by Kubernetes livenessProbe to decide whether to restart the pod.
+func (h *HealthHandler) Status(c fiber.Ctx) error {
+	return presenter.RenderItem(c, fiber.Map{"status": "ok"})
+}
+
 func (h *HealthHandler) Live(c fiber.Ctx) error {
 	return presenter.RenderItem(c, fiber.Map{"status": "alive"})
 }

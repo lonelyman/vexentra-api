@@ -43,7 +43,7 @@ func (h *UserHandler) Register(c fiber.Ctx) error {
 		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors))
 	}
 
-	result, err := h.svc.Register(c.Context(), req.Username, req.Email, req.Password, req.DisplayName)
+	result, err := h.svc.Register(c.Context(), req.Email, req.Password)
 	if err != nil {
 		return err
 	}
@@ -75,4 +75,63 @@ func (h *UserHandler) GetProfile(c fiber.Ctx) error {
 
 	h.logger.Info("Profile retrieved", "userID", userID)
 	return presenter.RenderItem(c, NewUserResponse(u))
+}
+
+// ListUsers godoc
+// GET /api/v1/users?page=1&limit=10           → offset-based pagination
+// GET /api/v1/users?cursor=<uuid>&limit=20    → cursor-based pagination
+//
+// Mode is selected by the presence of the "cursor" query param.
+// If "cursor" is present (even empty string won't trigger — must use ?cursor=<value>),
+// cursor mode is used. Otherwise, offset mode is used.
+func (h *UserHandler) ListUsers(c fiber.Ctx) error {
+	if _, exists := c.Queries()["cursor"]; exists {
+		return h.listUsersCursor(c)
+	}
+	return h.listUsersOffset(c)
+}
+
+func (h *UserHandler) listUsersOffset(c fiber.Ctx) error {
+	q := presenter.ParseOffsetQuery(c)
+
+	result, err := h.svc.ListUsersOffset(c.Context(), q.Limit, q.Offset)
+	if err != nil {
+		return err
+	}
+
+	items := make([]UserResponse, len(result.Users))
+	for i, u := range result.Users {
+		items[i] = NewUserResponse(u)
+	}
+
+	pg := presenter.NewOffsetPagination(int(result.Total), q.Limit, q.Offset)
+	h.logger.Info("Listed users (offset)", "page", q.Page, "total", result.Total)
+	return presenter.RenderList(c, items, pg)
+}
+
+func (h *UserHandler) listUsersCursor(c fiber.Ctx) error {
+	q := presenter.ParseCursorQuery(c)
+
+	afterID := uuid.Nil
+	if q.Cursor != "" {
+		var err error
+		afterID, err = uuid.Parse(q.Cursor)
+		if err != nil {
+			return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "cursor ไม่ถูกต้อง"))
+		}
+	}
+
+	result, err := h.svc.ListUsersCursor(c.Context(), afterID, q.Limit)
+	if err != nil {
+		return err
+	}
+
+	items := make([]UserResponse, len(result.Users))
+	for i, u := range result.Users {
+		items[i] = NewUserResponse(u)
+	}
+
+	pg := presenter.NewCursorPagination(result.NextCursor, result.HasMore, q.Limit)
+	h.logger.Info("Listed users (cursor)", "cursor", q.Cursor, "count", len(items))
+	return presenter.RenderList(c, items, pg)
 }

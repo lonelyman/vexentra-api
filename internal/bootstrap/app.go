@@ -24,11 +24,11 @@ import (
 
 type App struct {
 	cfg     *config.Config
-	server  *fiber.App
 	db      *gorm.DB
 	redis   *redis.Client
-	logger  logger.Logger
 	authSvc auth.AuthService
+	server  *fiber.App
+	logger  logger.Logger
 }
 
 func InitializeApp(cfg *config.Config) (*App, error) {
@@ -45,7 +45,8 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
-	// Run Migrations (ควรจัดกลุ่มรวมกัน)
+	// Run Migrations
+	// Use pguser.ResetSchema(db) once when column types change (dev only), then switch back to AutoMigrate.
 	if err := pguser.AutoMigrate(db); err != nil {
 		return nil, err
 	}
@@ -55,13 +56,17 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	// DI Section
 	authSvc := auth.NewAuthService(cfg.JWT)
 	userRepo := pguser.NewUserRepository(db, l)
+	profileRepo := pguser.NewProfileRepository(db, l)
 	userSvc := usersvc.NewUserService(userRepo, authSvc, l)
+	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, l)
 	userHdl := userhdl.NewUserHandler(userSvc, l)
+	profileHdl := userhdl.NewProfileHandler(profileSvc, cfg.App.ShowcaseUserID, l)
 	authHdl := authhdl.NewAuthHandler(userSvc, authSvc, l)
 	healthHdl := healthhdl.NewHealthHandler(db, rdb)
 
 	http.SetupRouter(server, http.Handlers{
 		User:    userHdl,
+		Profile: profileHdl,
 		Auth:    authHdl,
 		Health:  healthHdl,
 		AuthSvc: authSvc,
@@ -70,11 +75,11 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 
 	return &App{
 		cfg:     cfg,
-		server:  server,
 		db:      db,
 		redis:   rdb,
-		logger:  l,
 		authSvc: authSvc,
+		server:  server,
+		logger:  l,
 	}, nil
 }
 

@@ -6,20 +6,24 @@ import (
 )
 
 type UserResponse struct {
-	ID          string    `json:"id"` // UUID as string
-	Username    string    `json:"username"`
-	Email       string    `json:"email"`
-	DisplayName string    `json:"display_name"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID              string     `json:"id"`
+	Username        string     `json:"username"`
+	Email           string     `json:"email"`
+	Status          string     `json:"status"`
+	IsEmailVerified bool       `json:"is_email_verified"`
+	LastLoginAt     *time.Time `json:"last_login_at"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 func NewUserResponse(u *user.User) UserResponse {
 	return UserResponse{
-		ID:          u.ID.String(),
-		Username:    u.Username,
-		Email:       u.Email,
-		DisplayName: u.DisplayName,
-		CreatedAt:   u.CreatedAt,
+		ID:              u.ID.String(),
+		Username:        u.Username,
+		Email:           u.Email,
+		Status:          u.Status,
+		IsEmailVerified: u.IsEmailVerified,
+		LastLoginAt:     u.LastLoginAt,
+		CreatedAt:       u.CreatedAt,
 	}
 }
 

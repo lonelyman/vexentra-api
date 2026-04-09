@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"vexentra-api/internal/modules/socialplatform"
 	"vexentra-api/internal/modules/user"
 	"vexentra-api/pkg/custom_errors"
 	"vexentra-api/pkg/logger"
@@ -37,22 +38,27 @@ type ProfileService interface {
 	AddPortfolioItem(ctx context.Context, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
 	UpdatePortfolioItem(ctx context.Context, itemID, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
 	RemovePortfolioItem(ctx context.Context, itemID, userID uuid.UUID) error
+
+	UpsertSocialLink(ctx context.Context, userID uuid.UUID, platform, url string, sortOrder int) (*user.SocialLink, error)
+	DeleteSocialLink(ctx context.Context, linkID, userID uuid.UUID) error
 }
 
 type profileService struct {
-	userRepo    user.UserRepository
-	profileRepo user.ProfileRepository
-	logger      logger.Logger
+	userRepo           user.UserRepository
+	profileRepo        user.ProfileRepository
+	socialPlatformRepo socialplatform.SocialPlatformRepository
+	logger             logger.Logger
 }
 
-func NewProfileService(userRepo user.UserRepository, profileRepo user.ProfileRepository, l logger.Logger) ProfileService {
+func NewProfileService(userRepo user.UserRepository, profileRepo user.ProfileRepository, socialPlatformRepo socialplatform.SocialPlatformRepository, l logger.Logger) ProfileService {
 	if l == nil {
 		l = logger.Get()
 	}
 	return &profileService{
-		userRepo:    userRepo,
-		profileRepo: profileRepo,
-		logger:      l,
+		userRepo:           userRepo,
+		profileRepo:        profileRepo,
+		socialPlatformRepo: socialPlatformRepo,
+		logger:             l,
 	}
 }
 
@@ -81,6 +87,17 @@ func (s *profileService) GetFullProfile(ctx context.Context, userID uuid.UUID, v
 	portfolio, err := s.profileRepo.ListPortfolioByUserID(ctx, userID, !viewerIsOwner)
 	if err != nil {
 		return nil, err
+	}
+
+	if profile != nil {
+		links, err := s.profileRepo.ListSocialLinks(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		profile.SocialLinks = make([]user.SocialLink, len(links))
+		for i, l := range links {
+			profile.SocialLinks[i] = *l
+		}
 	}
 
 	return &GetFullProfileResult{
@@ -199,4 +216,28 @@ func (s *profileService) syncTags(ctx context.Context, item *user.PortfolioItem,
 
 func slugify(s string) string {
 	return strings.ToLower(strings.NewReplacer(" ", "-", "_", "-").Replace(s))
+}
+
+func (s *profileService) UpsertSocialLink(ctx context.Context, userID uuid.UUID, platform, url string, sortOrder int) (*user.SocialLink, error) {
+	p, err := s.socialPlatformRepo.GetByKey(ctx, platform)
+	if err != nil {
+		return nil, err
+	}
+	if p == nil || !p.IsActive {
+		return nil, custom_errors.New(400, custom_errors.ErrInvalidFormat, "platform '"+platform+"' ไม่รองรับ")
+	}
+	l := &user.SocialLink{
+		UserID:    userID,
+		Platform:  platform,
+		URL:       url,
+		SortOrder: sortOrder,
+	}
+	if err := s.profileRepo.UpsertSocialLink(ctx, l); err != nil {
+		return nil, err
+	}
+	return l, nil
+}
+
+func (s *profileService) DeleteSocialLink(ctx context.Context, linkID, userID uuid.UUID) error {
+	return s.profileRepo.DeleteSocialLink(ctx, linkID, userID)
 }

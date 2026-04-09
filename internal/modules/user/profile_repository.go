@@ -12,6 +12,11 @@ type ProfileRepository interface {
 	GetProfileByUserID(ctx context.Context, userID uuid.UUID) (*Profile, error)
 	UpsertProfile(ctx context.Context, p *Profile) error
 
+	// ── Social Links (1:many via user_id) ────────────────────────────────
+	ListSocialLinks(ctx context.Context, userID uuid.UUID) ([]*SocialLink, error)
+	UpsertSocialLink(ctx context.Context, l *SocialLink) error
+	DeleteSocialLink(ctx context.Context, linkID, userID uuid.UUID) error
+
 	// ── Skills ────────────────────────────────────────────────────────────
 	ListSkillsByUserID(ctx context.Context, userID uuid.UUID) ([]*Skill, error)
 	CreateSkill(ctx context.Context, s *Skill) error

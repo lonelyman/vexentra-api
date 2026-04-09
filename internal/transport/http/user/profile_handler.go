@@ -84,10 +84,6 @@ func (h *ProfileHandler) UpsertProfile(c fiber.Ctx) error {
 		Bio:         req.Bio,
 		Location:    req.Location,
 		AvatarURL:   req.AvatarURL,
-		WebsiteURL:  req.WebsiteURL,
-		GitHubURL:   req.GitHubURL,
-		LinkedInURL: req.LinkedInURL,
-		TwitterURL:  req.TwitterURL,
 	}
 
 	if svcErr := h.svc.UpsertProfile(c.Context(), userID, p); svcErr != nil {
@@ -264,6 +260,52 @@ func (h *ProfileHandler) RemovePortfolioItem(c fiber.Ctx) error {
 	}
 
 	if svcErr := h.svc.RemovePortfolioItem(c.Context(), itemID, userID); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// UpsertSocialLink — PUT /api/v1/me/social-links/:platform
+func (h *ProfileHandler) UpsertSocialLink(c fiber.Ctx) error {
+	userID, err := ownerID(c)
+	if err != nil {
+		return presenter.RenderError(c, err)
+	}
+
+	platform := c.Params("platform")
+
+	var req UpsertSocialLinkRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+
+	l, svcErr := h.svc.UpsertSocialLink(c.Context(), userID, platform, req.URL, req.SortOrder)
+	if svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, SocialLinkResponse{
+		ID:        l.ID.String(),
+		Platform:  l.Platform,
+		URL:       l.URL,
+		SortOrder: l.SortOrder,
+	})
+}
+
+// DeleteSocialLink — DELETE /api/v1/me/social-links/:linkID
+func (h *ProfileHandler) DeleteSocialLink(c fiber.Ctx) error {
+	userID, err := ownerID(c)
+	if err != nil {
+		return presenter.RenderError(c, err)
+	}
+
+	linkID, parseErr := uuid.Parse(c.Params("linkID"))
+	if parseErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "social link ID ไม่ถูกต้อง"))
+	}
+
+	if svcErr := h.svc.DeleteSocialLink(c.Context(), linkID, userID); svcErr != nil {
 		return presenter.RenderError(c, svcErr)
 	}
 

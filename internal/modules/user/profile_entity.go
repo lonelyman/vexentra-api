@@ -15,12 +15,21 @@ type Profile struct {
 	Bio         string // multi-line about me
 	Location    string // e.g. "Bangkok, TH"
 	AvatarURL   string
-	WebsiteURL  string
-	GitHubURL   string
-	LinkedInURL string
-	TwitterURL  string
+	SocialLinks []SocialLink // loaded via 1:many join
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+// SocialLink is a single social/contact link belonging to a user's profile.
+// Platform references a key in the master_social_platforms table.
+type SocialLink struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Platform  string // key from master_social_platforms.key
+	URL       string
+	SortOrder int
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Skill category constants.

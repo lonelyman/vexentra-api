@@ -13,10 +13,12 @@ type UpsertProfileRequest struct {
 	Bio         string `json:"bio"`
 	Location    string `json:"location"`
 	AvatarURL   string `json:"avatar_url"`
-	WebsiteURL  string `json:"website_url"`
-	GitHubURL   string `json:"github_url"`
-	LinkedInURL string `json:"linkedin_url"`
-	TwitterURL  string `json:"twitter_url"`
+}
+
+// UpsertSocialLinkRequest is the body for PUT /api/v1/me/social-links/:platform.
+type UpsertSocialLinkRequest struct {
+	URL       string `json:"url"       validate:"required,url"`
+	SortOrder int    `json:"sort_order"`
 }
 
 // AddSkillRequest is the body for POST /api/v1/me/skills.

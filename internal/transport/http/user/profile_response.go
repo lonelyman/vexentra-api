@@ -12,15 +12,20 @@ import (
 
 // ProfileResponse is the profile section of a user's public page.
 type ProfileResponse struct {
-	DisplayName string `json:"display_name"`
-	Headline    string `json:"headline"`
-	Bio         string `json:"bio"`
-	Location    string `json:"location"`
-	AvatarURL   string `json:"avatar_url"`
-	WebsiteURL  string `json:"website_url"`
-	GitHubURL   string `json:"github_url"`
-	LinkedInURL string `json:"linkedin_url"`
-	TwitterURL  string `json:"twitter_url"`
+	DisplayName string               `json:"display_name"`
+	Headline    string               `json:"headline"`
+	Bio         string               `json:"bio"`
+	Location    string               `json:"location"`
+	AvatarURL   string               `json:"avatar_url"`
+	SocialLinks []SocialLinkResponse `json:"social_links"`
+}
+
+// SocialLinkResponse represents a single social link.
+type SocialLinkResponse struct {
+	ID        string `json:"id"`
+	Platform  string `json:"platform"`
+	URL       string `json:"url"`
+	SortOrder int    `json:"sort_order"`
 }
 
 // SkillResponse represents a single skill entry.
@@ -94,16 +99,22 @@ func toProfileResponse(p *user.Profile) *ProfileResponse {
 	if p == nil {
 		return nil
 	}
+	links := make([]SocialLinkResponse, len(p.SocialLinks))
+	for i, l := range p.SocialLinks {
+		links[i] = SocialLinkResponse{
+			ID:        l.ID.String(),
+			Platform:  l.Platform,
+			URL:       l.URL,
+			SortOrder: l.SortOrder,
+		}
+	}
 	return &ProfileResponse{
 		DisplayName: p.DisplayName,
 		Headline:    p.Headline,
 		Bio:         p.Bio,
 		Location:    p.Location,
 		AvatarURL:   p.AvatarURL,
-		WebsiteURL:  p.WebsiteURL,
-		GitHubURL:   p.GitHubURL,
-		LinkedInURL: p.LinkedInURL,
-		TwitterURL:  p.TwitterURL,
+		SocialLinks: links,
 	}
 }
 

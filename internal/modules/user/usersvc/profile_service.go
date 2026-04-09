@@ -39,7 +39,8 @@ type ProfileService interface {
 	UpdatePortfolioItem(ctx context.Context, itemID, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
 	RemovePortfolioItem(ctx context.Context, itemID, userID uuid.UUID) error
 
-	UpsertSocialLink(ctx context.Context, userID uuid.UUID, platform, url string, sortOrder int) (*user.SocialLink, error)
+	ListSocialLinks(ctx context.Context, userID uuid.UUID) ([]*user.SocialLink, error)
+	UpsertSocialLink(ctx context.Context, userID, platformID uuid.UUID, url string, sortOrder int) (*user.SocialLink, error)
 	DeleteSocialLink(ctx context.Context, linkID, userID uuid.UUID) error
 }
 
@@ -218,19 +219,23 @@ func slugify(s string) string {
 	return strings.ToLower(strings.NewReplacer(" ", "-", "_", "-").Replace(s))
 }
 
-func (s *profileService) UpsertSocialLink(ctx context.Context, userID uuid.UUID, platform, url string, sortOrder int) (*user.SocialLink, error) {
-	p, err := s.socialPlatformRepo.GetByKey(ctx, platform)
+func (s *profileService) ListSocialLinks(ctx context.Context, userID uuid.UUID) ([]*user.SocialLink, error) {
+	return s.profileRepo.ListSocialLinks(ctx, userID)
+}
+
+func (s *profileService) UpsertSocialLink(ctx context.Context, userID, platformID uuid.UUID, url string, sortOrder int) (*user.SocialLink, error) {
+	p, err := s.socialPlatformRepo.GetByID(ctx, platformID)
 	if err != nil {
 		return nil, err
 	}
 	if p == nil || !p.IsActive {
-		return nil, custom_errors.New(400, custom_errors.ErrInvalidFormat, "platform '"+platform+"' ไม่รองรับ")
+		return nil, custom_errors.New(400, custom_errors.ErrInvalidFormat, "platform ไม่รองรับหรือไม่ได้เปิดใช้งาน")
 	}
 	l := &user.SocialLink{
-		UserID:    userID,
-		Platform:  platform,
-		URL:       url,
-		SortOrder: sortOrder,
+		UserID:     userID,
+		PlatformID: platformID,
+		URL:        url,
+		SortOrder:  sortOrder,
 	}
 	if err := s.profileRepo.UpsertSocialLink(ctx, l); err != nil {
 		return nil, err

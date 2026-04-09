@@ -22,10 +22,10 @@ type ProfileResponse struct {
 
 // SocialLinkResponse represents a single social link.
 type SocialLinkResponse struct {
-	ID        string `json:"id"`
-	Platform  string `json:"platform"`
-	URL       string `json:"url"`
-	SortOrder int    `json:"sort_order"`
+	ID         string `json:"id"`
+	PlatformID string `json:"platform_id"`
+	URL        string `json:"url"`
+	SortOrder  int    `json:"sort_order"`
 }
 
 // SkillResponse represents a single skill entry.
@@ -102,10 +102,10 @@ func toProfileResponse(p *user.Profile) *ProfileResponse {
 	links := make([]SocialLinkResponse, len(p.SocialLinks))
 	for i, l := range p.SocialLinks {
 		links[i] = SocialLinkResponse{
-			ID:        l.ID.String(),
-			Platform:  l.Platform,
-			URL:       l.URL,
-			SortOrder: l.SortOrder,
+			ID:         l.ID.String(),
+			PlatformID: l.PlatformID.String(),
+			URL:        l.URL,
+			SortOrder:  l.SortOrder,
 		}
 	}
 	return &ProfileResponse{

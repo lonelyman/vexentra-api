@@ -6,3 +6,9 @@ type RegisterRequest struct {
 	Password   string `json:"password"    validate:"required,strong_password"        vmsg:"required:กรุณาระบุรหัสผ่าน"`
 	RePassword string `json:"re_password" validate:"required,eqfield=Password"       vmsg:"required:กรุณายืนยันรหัสผ่าน,eqfield:รหัสผ่านไม่ตรงกัน"`
 }
+
+// ChangePasswordRequest is the request body for PUT /api/v1/me/password.
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required"       vmsg:"required:กรุณาระบุรหัสผ่านปัจจุบัน"`
+	NewPassword     string `json:"new_password"     validate:"required,min=8" vmsg:"required:กรุณาระบุรหัสผ่านใหม่,min:รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"`
+}

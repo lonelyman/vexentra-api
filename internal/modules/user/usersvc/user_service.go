@@ -2,6 +2,8 @@ package usersvc
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"strings"
 	"time"
 
@@ -39,6 +41,15 @@ type UserService interface {
 	GetProfile(ctx context.Context, userID uuid.UUID) (*user.User, error)
 	ListUsersOffset(ctx context.Context, limit, offset int) (*ListUsersOffsetResult, error)
 	ListUsersCursor(ctx context.Context, afterID uuid.UUID, limit int) (*ListUsersCursorResult, error)
+
+	// Email Verification
+	VerifyEmail(ctx context.Context, token string) error
+	ResendVerifyEmail(ctx context.Context, userID uuid.UUID) (string, error)
+
+	// Password Management
+	ForgotPassword(ctx context.Context, email string) (string, error)
+	ResetPassword(ctx context.Context, token, newPassword string) error
+	ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error
 }
 
 type userService struct {
@@ -213,4 +224,124 @@ func (s *userService) ListUsersCursor(ctx context.Context, afterID uuid.UUID, li
 		HasMore:    hasMore,
 		NextCursor: nextCursor,
 	}, nil
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Email Verification
+// ─────────────────────────────────────────────────────────────────────────────
+
+func (s *userService) VerifyEmail(ctx context.Context, token string) error {
+	u, err := s.repo.GetByEmailVerificationToken(ctx, token)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "token ไม่ถูกต้องหรือหมดอายุ")
+	}
+	if u.IsEmailVerified {
+		return custom_errors.New(400, custom_errors.ErrAlreadyExists, "อีเมลนี้ยืนยันแล้ว")
+	}
+	if u.EmailVerificationTokenExpiresAt != nil && time.Now().After(*u.EmailVerificationTokenExpiresAt) {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "token หมดอายุแล้ว กรุณาขอใหม่")
+	}
+	return s.repo.SetEmailVerified(ctx, u.ID)
+}
+
+func (s *userService) ResendVerifyEmail(ctx context.Context, userID uuid.UUID) (string, error) {
+	u, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if u.IsEmailVerified {
+		return "", custom_errors.New(400, custom_errors.ErrAlreadyExists, "อีเมลนี้ยืนยันแล้ว")
+	}
+	token, err := generateSecureToken()
+	if err != nil {
+		return "", custom_errors.NewInternalError("ไม่สามารถสร้าง token ได้")
+	}
+	expiresAt := time.Now().Add(24 * time.Hour)
+	if err := s.repo.SetEmailVerificationToken(ctx, userID, token, expiresAt); err != nil {
+		return "", err
+	}
+	// TODO: send email with verification link containing token
+	s.logger.Info("Email verification token generated", "userID", userID)
+	return token, nil
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Password Management
+// ─────────────────────────────────────────────────────────────────────────────
+
+func (s *userService) ForgotPassword(ctx context.Context, email string) (string, error) {
+	u, err := s.repo.GetByEmail(ctx, email)
+	if err != nil {
+		return "", err
+	}
+	// Always return success to prevent user enumeration
+	if u == nil {
+		s.logger.Info("ForgotPassword: email not found (silent)", "email", email)
+		return "", nil
+	}
+	token, err := generateSecureToken()
+	if err != nil {
+		return "", custom_errors.NewInternalError("ไม่สามารถสร้าง token ได้")
+	}
+	expiresAt := time.Now().Add(1 * time.Hour)
+	if err := s.repo.SetPasswordResetToken(ctx, u.ID, token, expiresAt); err != nil {
+		return "", err
+	}
+	// TODO: send email with reset link containing token
+	s.logger.Info("Password reset token generated", "userID", u.ID)
+	return token, nil
+}
+
+func (s *userService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	u, err := s.repo.GetByPasswordResetToken(ctx, token)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "token ไม่ถูกต้องหรือหมดอายุ")
+	}
+	if u.PasswordResetTokenExpiresAt != nil && time.Now().After(*u.PasswordResetTokenExpiresAt) {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "token หมดอายุแล้ว กรุณาขอใหม่")
+	}
+	hashed, err := s.authSvc.HashPassword(newPassword)
+	if err != nil {
+		return custom_errors.NewInternalError("ไม่สามารถประมวลผล password ได้")
+	}
+	if err := s.repo.UpdateLocalAuthSecret(ctx, u.ID, hashed); err != nil {
+		return err
+	}
+	return s.repo.ClearPasswordResetToken(ctx, u.ID)
+}
+
+func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error {
+	a, err := s.repo.GetAuthByUserAndProvider(ctx, userID, user.AuthProviderLocal)
+	if err != nil {
+		return err
+	}
+	if a == nil {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "บัญชีนี้ไม่ได้ใช้ local password")
+	}
+	if err := s.authSvc.ComparePassword(a.Secret, currentPassword); err != nil {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "รหัสผ่านปัจจุบันไม่ถูกต้อง")
+	}
+	hashed, err := s.authSvc.HashPassword(newPassword)
+	if err != nil {
+		return custom_errors.NewInternalError("ไม่สามารถประมวลผล password ได้")
+	}
+	return s.repo.UpdateLocalAuthSecret(ctx, userID, hashed)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+func generateSecureToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }

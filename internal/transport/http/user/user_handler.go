@@ -135,3 +135,30 @@ func (h *UserHandler) listUsersCursor(c fiber.Ctx) error {
 	h.logger.Info("Listed users (cursor)", "cursor", q.Cursor, "count", len(items))
 	return presenter.RenderList(c, items, pg)
 }
+
+// ChangePassword — PUT /api/v1/me/password
+func (h *UserHandler) ChangePassword(c fiber.Ctx) error {
+	claims := auth.GetClaims(c)
+	if claims == nil {
+		return custom_errors.New(401, custom_errors.ErrUnauthorized, "ไม่พบข้อมูล Token")
+	}
+	userID, err := uuid.Parse(claims.GetUserID())
+	if err != nil {
+		return custom_errors.New(401, custom_errors.ErrUnauthorized, "Token มี UserID ไม่ถูกต้อง")
+	}
+
+	req := new(ChangePasswordRequest)
+	if bindErr := c.Bind().Body(req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, "INVALID_JSON", "รูปแบบ JSON ไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, req); !vResult.IsValid {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors))
+	}
+
+	if svcErr := h.svc.ChangePassword(c.Context(), userID, req.CurrentPassword, req.NewPassword); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	h.logger.Info("Password changed", "userID", userID)
+	return presenter.RenderItem(c, fiber.Map{"message": "เปลี่ยนรหัสผ่านสำเร็จ"})
+}

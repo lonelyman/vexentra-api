@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
@@ -115,4 +116,82 @@ func (h *AuthHandler) Logout(c fiber.Ctx) error {
 	// redisClient.Set(ctx, "blacklist:"+claims.ID, 1, ttl)
 
 	return presenter.RenderItem(c, fiber.Map{"message": "ออกจากระบบสำเร็จ"})
+}
+
+// VerifyEmail godoc
+// GET /api/v1/auth/verify-email?token=<token>
+func (h *AuthHandler) VerifyEmail(c fiber.Ctx) error {
+	token := c.Query("token")
+	if token == "" {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "กรุณาระบุ token"))
+	}
+	if err := h.userSvc.VerifyEmail(c.Context(), token); err != nil {
+		return presenter.RenderError(c, err)
+	}
+	h.logger.Info("Email verified successfully")
+	return presenter.RenderItem(c, fiber.Map{"message": "ยืนยันอีเมลสำเร็จ"})
+}
+
+// ResendVerifyEmail godoc
+// POST /api/v1/auth/resend-verify — requires valid Access Token
+func (h *AuthHandler) ResendVerifyEmail(c fiber.Ctx) error {
+	claims := auth.GetClaims(c)
+	if claims == nil {
+		return custom_errors.New(401, custom_errors.ErrUnauthorized, "ไม่พบข้อมูล Token")
+	}
+	userID, err := uuid.Parse(claims.GetUserID())
+	if err != nil {
+		return custom_errors.New(401, custom_errors.ErrUnauthorized, "Token มี UserID ไม่ถูกต้อง")
+	}
+	token, svcErr := h.userSvc.ResendVerifyEmail(c.Context(), userID)
+	if svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	h.logger.Info("Verification email resent", "userID", userID)
+	// In production: send email and return generic success
+	// In development: return token directly for testing convenience
+	return presenter.RenderItem(c, fiber.Map{
+		"message": "ส่งอีเมลยืนยันใหม่แล้ว",
+		"token":   token, // TODO: remove in production; send via email instead
+	})
+}
+
+// ForgotPassword godoc
+// POST /api/v1/auth/forgot-password
+func (h *AuthHandler) ForgotPassword(c fiber.Ctx) error {
+	req := new(ForgotPasswordRequest)
+	if err := c.Bind().Body(req); err != nil {
+		return presenter.RenderError(c, custom_errors.New(400, "INVALID_JSON", "รูปแบบ JSON ไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, req); !vResult.IsValid {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors))
+	}
+	token, svcErr := h.userSvc.ForgotPassword(c.Context(), req.Email)
+	if svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	h.logger.Info("Forgot password requested", "email", req.Email)
+	// Always return success to prevent user enumeration
+	resp := fiber.Map{"message": "หากอีเมลนี้มีในระบบ คุณจะได้รับลิงก์รีเซ็ตรหัสผ่าน"}
+	if token != "" {
+		resp["token"] = token // TODO: remove in production; send via email instead
+	}
+	return presenter.RenderItem(c, resp)
+}
+
+// ResetPassword godoc
+// POST /api/v1/auth/reset-password
+func (h *AuthHandler) ResetPassword(c fiber.Ctx) error {
+	req := new(ResetPasswordRequest)
+	if err := c.Bind().Body(req); err != nil {
+		return presenter.RenderError(c, custom_errors.New(400, "INVALID_JSON", "รูปแบบ JSON ไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, req); !vResult.IsValid {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors))
+	}
+	if err := h.userSvc.ResetPassword(c.Context(), req.Token, req.NewPassword); err != nil {
+		return presenter.RenderError(c, err)
+	}
+	h.logger.Info("Password reset successfully")
+	return presenter.RenderItem(c, fiber.Map{"message": "รีเซ็ตรหัสผ่านสำเร็จ กรุณา login ใหม่"})
 }

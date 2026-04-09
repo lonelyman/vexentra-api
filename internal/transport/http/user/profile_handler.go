@@ -266,30 +266,33 @@ func (h *ProfileHandler) RemovePortfolioItem(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// UpsertSocialLink — PUT /api/v1/me/social-links/:platform
+// UpsertSocialLink — PUT /api/v1/me/social-links/:platformID
 func (h *ProfileHandler) UpsertSocialLink(c fiber.Ctx) error {
 	userID, err := ownerID(c)
 	if err != nil {
 		return presenter.RenderError(c, err)
 	}
 
-	platform := c.Params("platform")
+	platformID, parseErr := uuid.Parse(c.Params("platformID"))
+	if parseErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "platform ID ไม่ถูกต้อง"))
+	}
 
 	var req UpsertSocialLinkRequest
 	if bindErr := c.Bind().JSON(&req); bindErr != nil {
 		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
 	}
 
-	l, svcErr := h.svc.UpsertSocialLink(c.Context(), userID, platform, req.URL, req.SortOrder)
+	l, svcErr := h.svc.UpsertSocialLink(c.Context(), userID, platformID, req.URL, req.SortOrder)
 	if svcErr != nil {
 		return presenter.RenderError(c, svcErr)
 	}
 
 	return presenter.RenderItem(c, SocialLinkResponse{
-		ID:        l.ID.String(),
-		Platform:  l.Platform,
-		URL:       l.URL,
-		SortOrder: l.SortOrder,
+		ID:         l.ID.String(),
+		PlatformID: l.PlatformID.String(),
+		URL:        l.URL,
+		SortOrder:  l.SortOrder,
 	})
 }
 
@@ -310,6 +313,30 @@ func (h *ProfileHandler) DeleteSocialLink(c fiber.Ctx) error {
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// GetSocialLinks — GET /api/v1/me/social-links
+func (h *ProfileHandler) GetSocialLinks(c fiber.Ctx) error {
+	userID, appErr := ownerID(c)
+	if appErr != nil {
+		return presenter.RenderError(c, appErr)
+	}
+
+	links, svcErr := h.svc.ListSocialLinks(c.Context(), userID)
+	if svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	resp := make([]SocialLinkResponse, len(links))
+	for i, l := range links {
+		resp[i] = SocialLinkResponse{
+			ID:         l.ID.String(),
+			PlatformID: l.PlatformID.String(),
+			URL:        l.URL,
+			SortOrder:  l.SortOrder,
+		}
+	}
+	return presenter.RenderList(c, resp)
 }
 
 // ownerID extracts the authenticated user's UUID from the request context.

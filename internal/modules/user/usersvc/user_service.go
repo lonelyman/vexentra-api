@@ -139,6 +139,7 @@ func (s *userService) Register(ctx context.Context, email, password, inviteToken
 		PersonID: newPerson.ID,
 		Username: username,
 		Email:    email,
+		Role:     user.UserRoleMember,
 		Status:   user.UserStatusPendingVerification,
 	}
 	if err := s.repo.Create(ctx, newUser); err != nil {
@@ -151,7 +152,7 @@ func (s *userService) Register(ctx context.Context, email, password, inviteToken
 		s.logger.Warn("Failed to link person to user", "personID", newPerson.ID, "userID", newUser.ID)
 	}
 	newPerson.LinkedUserID = &newUser.ID
-	newPerson.CreatedByUserID = newUser.ID
+	// CreatedByUserID remains nil for self-registered Persons.
 
 	// 4. สร้าง UserAuth (local provider)
 	newAuth := &user.UserAuth{

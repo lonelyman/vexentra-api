@@ -137,3 +137,52 @@ curl http://192.168.1.100:11434/api/generate \
 | M1/M2 16GB (ปัจจุบัน) | 14B Q5_K_M | ดี |
 | M2 Pro 32GB | 32B Q4_K_M | ดีมาก |
 | M3 Max 64GB | 32B Q8 หรือ 70B Q4 | ยอดเยี่ยม |
+
+---
+
+## 🧭 Vexentra API Snapshot (สำหรับ AI) — อัปเดตล่าสุด 2026-04-23
+
+ส่วนนี้ไว้ให้ AI ที่เข้ามาอ่าน repo เข้าใจสถานะระบบปัจจุบันทันที
+
+### Migrations ล่าสุด (goose)
+
+- `20260423000006_project_status_master.sql`
+  - เพิ่ม table `project_statuses` เป็น master data สถานะโครงการ
+  - ใช้กับ dropdown/filter/dashboard แทน hardcode
+- `20260423000007_project_financial_plan.sql`
+  - เพิ่ม `project_financial_plans` (ค่าจ้าง/เงินประกัน/เงื่อนไข)
+  - เพิ่ม `project_payment_installments` (ตารางงวดรับเงิน)
+- `20260423000008_add_penalty_expense_category.sql`
+  - เพิ่มหมวดรายจ่าย `penalty` (`ค่าปรับ`) ใน `transaction_categories`
+
+### Project Status Rules (ปัจจุบัน)
+
+- Lifecycle หลัก: `draft`, `planned`, `bidding`, `active`, `on_hold`, `closed`
+- ปิดโครงการต้องผ่าน endpoint `/projects/:id/close` พร้อม `reason` + `closed_at`
+- ถ้าจะเป็น `active` หรือ `on_hold` ต้องมี `client_person_id`
+- สถานะถูกโหลดจาก DB (`project_statuses`) ผ่าน API `GET /api/v1/project-statuses`
+
+### Financial Plan API (ปัจจุบัน)
+
+- `GET /api/v1/projects/:id/financial-plan`
+- `PUT /api/v1/projects/:id/financial-plan`
+- Validation สำคัญ:
+  - `retention_amount >= 0`
+  - `retention_amount <= contract_amount`
+  - ยอดรวมงวดต้องไม่เกินยอดสุทธิหลังหักเงินประกัน
+
+### Transaction Notes (ปัจจุบัน)
+
+- รายการรับ-จ่าย (`project_transactions`) แยกจากแผนค่าจ้าง/งวดรับเงินโดยตั้งใจ
+- เมื่อโครงการ `closed`:
+  - create/update/delete transaction ถูก block (409 `PROJECT_CLOSED`)
+- หมวดรายจ่ายมี `penalty` ให้ใช้แล้ว
+
+### AI Guardrails สำหรับ repo นี้
+
+- ห้ามใช้ GORM `AutoMigrate` เพื่อเปลี่ยน schema
+- การเปลี่ยนโครงสร้าง DB ต้องผ่าน `database/migrations/*.sql` เท่านั้น
+- ถ้าแก้ status/financial logic ให้แก้ทั้ง 3 ชั้นให้สอดคล้อง:
+  - migration/schema
+  - service/repository
+  - transport/http + web client/actions

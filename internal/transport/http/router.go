@@ -91,6 +91,7 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	// service layer via user.Caller — no RoleMiddleware guard needed on these routes.
 	protected.Post("/projects", h.Project.Create)
 	protected.Get("/projects", h.Project.List)
+	protected.Get("/projects/by-code/:code", h.Project.GetByCode)
 	protected.Get("/projects/:id", h.Project.Get)
 	protected.Put("/projects/:id", h.Project.Update)
 	protected.Post("/projects/:id/close", h.Project.Close)

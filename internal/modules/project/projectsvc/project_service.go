@@ -50,6 +50,7 @@ type ProjectService interface {
 	Create(ctx context.Context, caller user.Caller, in CreateProjectInput) (*project.Project, error)
 
 	Get(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.Project, error)
+	GetByCode(ctx context.Context, caller user.Caller, code string) (*project.Project, error)
 	List(ctx context.Context, caller user.Caller, f project.ProjectFilter, pg project.Pagination) ([]*project.Project, int64, error)
 
 	Update(ctx context.Context, caller user.Caller, id uuid.UUID, in UpdateProjectInput) (*project.Project, error)
@@ -244,6 +245,28 @@ func (s *projectService) Delete(ctx context.Context, caller user.Caller, id uuid
 
 func (s *projectService) Get(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.Project, error) {
 	return s.CanAccessProject(ctx, caller, id)
+}
+
+func (s *projectService) GetByCode(ctx context.Context, caller user.Caller, code string) (*project.Project, error) {
+	p, err := s.projectRepo.GetByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if p == nil {
+		return nil, custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบโปรเจกต์นี้")
+	}
+	// Same access rules as CanAccessProject — reuse loaded project to avoid second DB hit
+	if caller.IsStaff() || p.CreatedByUserID == caller.UserID {
+		return p, nil
+	}
+	m, err := s.memberRepo.GetActiveByProjectAndPerson(ctx, p.ID, caller.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, custom_errors.New(403, custom_errors.ErrForbidden, "ไม่มีสิทธิ์เข้าถึงโปรเจกต์นี้")
+	}
+	return p, nil
 }
 
 // List restricts non-staff callers to projects they are an active member of.

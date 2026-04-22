@@ -58,7 +58,7 @@ func (r *projectRepository) GetByID(ctx context.Context, id uuid.UUID) (*project
 func (r *projectRepository) GetByCode(ctx context.Context, code string) (*project.Project, error) {
 	var m projectModel
 	if err := pgtx.DB(ctx, r.db).WithContext(ctx).
-		Where("project_code = ?", code).First(&m).Error; err != nil {
+		Where("LOWER(project_code) = LOWER(?)", code).First(&m).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}

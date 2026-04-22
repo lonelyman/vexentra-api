@@ -88,6 +88,23 @@ func (h *ProjectHandler) Get(c fiber.Ctx) error {
 	return presenter.RenderItem(c, NewProjectResponse(p))
 }
 
+// GetByCode — GET /api/v1/projects/by-code/:code
+func (h *ProjectHandler) GetByCode(c fiber.Ctx) error {
+	caller, err := auth.GetCaller(c)
+	if err != nil {
+		return err
+	}
+	code := strings.TrimSpace(c.Params("code"))
+	if code == "" {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "กรุณาระบุรหัสโปรเจกต์")
+	}
+	p, svcErr := h.svc.GetByCode(c.Context(), caller, code)
+	if svcErr != nil {
+		return svcErr
+	}
+	return presenter.RenderItem(c, NewProjectResponse(p))
+}
+
 // List — GET /api/v1/projects?status=&search=&page=&limit=
 func (h *ProjectHandler) List(c fiber.Ctx) error {
 	caller, err := auth.GetCaller(c)

@@ -112,6 +112,16 @@ func (r *userRepository) UpdateStatus(ctx context.Context, userID uuid.UUID, sta
 	return nil
 }
 
+func (r *userRepository) UpdateRole(ctx context.Context, userID uuid.UUID, role string) error {
+	if err := r.db.WithContext(ctx).Model(&userModel{}).
+		Where("id = ?", userID).
+		Update("role", role).Error; err != nil {
+		r.logger.Error("DB_UPDATE_ROLE_ERROR", err)
+		return err
+	}
+	return nil
+}
+
 func (r *userRepository) UpdateLastLogin(ctx context.Context, userID uuid.UUID, t time.Time) error {
 	if err := r.db.WithContext(ctx).Model(&userModel{}).
 		Where("id = ?", userID).

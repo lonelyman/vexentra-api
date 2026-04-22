@@ -17,6 +17,7 @@ type UserRepository interface {
 
 	// ─── สถานะ & การ tracking ────────────────────────────────────────────────
 	UpdateStatus(ctx context.Context, userID uuid.UUID, status string) error
+	UpdateRole(ctx context.Context, userID uuid.UUID, role string) error
 	UpdateLastLogin(ctx context.Context, userID uuid.UUID, t time.Time) error
 	UpdatePersonID(ctx context.Context, userID, personID uuid.UUID) error // ใช้ตอน claim person
 

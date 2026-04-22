@@ -58,6 +58,7 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected := api.Group("/", middlewares.AuthMiddleware(h.AuthSvc))
 	protected.Get("/me", h.User.GetProfile)
 	protected.Get("/users", middlewares.RoleMiddleware("admin"), h.User.ListUsers)
+	protected.Patch("/users/:id", middlewares.RoleMiddleware("admin"), h.User.AdminUpdateUser)
 	protected.Post("/auth/logout", h.Auth.Logout)
 	protected.Post("/auth/resend-verify", h.Auth.ResendVerifyEmail)
 	protected.Put("/me/password", h.User.ChangePassword)

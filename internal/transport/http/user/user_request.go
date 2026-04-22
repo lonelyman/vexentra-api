@@ -18,3 +18,10 @@ type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" validate:"required"               vmsg:"required:กรุณาระบุรหัสผ่านปัจจุบัน"`
 	NewPassword     string `json:"new_password"     validate:"required,strong_password" vmsg:"required:กรุณาระบุรหัสผ่านใหม่"`
 }
+
+// AdminUpdateUserRequest is the request body for PATCH /api/v1/users/:id (admin only).
+// Both fields are optional — send only the ones you want to change.
+type AdminUpdateUserRequest struct {
+	Role   string `json:"role"   validate:"omitempty,oneof=member manager admin"                    vmsg:"oneof:role ต้องเป็น member | manager | admin"`
+	Status string `json:"status" validate:"omitempty,oneof=active banned pending_verification"    vmsg:"oneof:status ต้องเป็น active | banned | pending_verification"`
+}

@@ -12,6 +12,7 @@ import (
 	"vexentra-api/pkg/auth"
 	"vexentra-api/pkg/custom_errors"
 	"vexentra-api/pkg/logger"
+	"vexentra-api/pkg/wela"
 
 	"github.com/google/uuid"
 )
@@ -63,6 +64,9 @@ type UserService interface {
 	ForgotPassword(ctx context.Context, email string) (string, error)
 	ResetPassword(ctx context.Context, token, newPassword string) error
 	ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error
+
+	// Admin — user management
+	AdminUpdateUser(ctx context.Context, targetID uuid.UUID, role, status string) (*user.User, error)
 }
 
 type userService struct {
@@ -200,7 +204,7 @@ func (s *userService) registerWithInviteToken(ctx context.Context, email, userna
 	if targetPerson == nil {
 		return nil, custom_errors.New(400, custom_errors.ErrNotFound, "invite link ไม่ถูกต้อง")
 	}
-	if targetPerson.InviteTokenExpiresAt != nil && time.Now().After(*targetPerson.InviteTokenExpiresAt) {
+	if targetPerson.InviteTokenExpiresAt != nil && wela.NowUTC().After(*targetPerson.InviteTokenExpiresAt) {
 		return nil, custom_errors.New(400, "INVITE_TOKEN_EXPIRED", "invite link หมดอายุแล้ว")
 	}
 	if targetPerson.LinkedUserID != nil {
@@ -335,7 +339,7 @@ func (s *userService) Login(ctx context.Context, email, password string) (*Regis
 	}
 
 	// 5. บันทึกเวลา login ล่าสุด (best-effort — ไม่ block login ถ้าล้มเหลว)
-	now := time.Now()
+	now := wela.NowUTC()
 	if err := s.repo.UpdateLastLogin(ctx, u.ID, now); err != nil {
 		s.logger.Warn("Failed to update last_login_at", "userID", u.ID)
 	}
@@ -411,7 +415,7 @@ func (s *userService) VerifyEmail(ctx context.Context, token string) error {
 	if u.IsEmailVerified {
 		return custom_errors.New(400, custom_errors.ErrAlreadyExists, "อีเมลนี้ยืนยันแล้ว")
 	}
-	if u.EmailVerificationTokenExpiresAt != nil && time.Now().After(*u.EmailVerificationTokenExpiresAt) {
+	if u.EmailVerificationTokenExpiresAt != nil && wela.NowUTC().After(*u.EmailVerificationTokenExpiresAt) {
 		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "token หมดอายุแล้ว กรุณาขอใหม่")
 	}
 	return s.repo.SetEmailVerified(ctx, u.ID)
@@ -429,7 +433,7 @@ func (s *userService) ResendVerifyEmail(ctx context.Context, userID uuid.UUID) (
 	if err != nil {
 		return "", custom_errors.NewInternalError("ไม่สามารถสร้าง token ได้")
 	}
-	expiresAt := time.Now().Add(24 * time.Hour)
+	expiresAt := wela.NowUTC().Add(24 * time.Hour)
 	if err := s.repo.SetEmailVerificationToken(ctx, userID, token, expiresAt); err != nil {
 		return "", err
 	}
@@ -456,7 +460,7 @@ func (s *userService) ForgotPassword(ctx context.Context, email string) (string,
 	if err != nil {
 		return "", custom_errors.NewInternalError("ไม่สามารถสร้าง token ได้")
 	}
-	expiresAt := time.Now().Add(1 * time.Hour)
+	expiresAt := wela.NowUTC().Add(1 * time.Hour)
 	if err := s.repo.SetPasswordResetToken(ctx, u.ID, token, expiresAt); err != nil {
 		return "", err
 	}
@@ -473,7 +477,7 @@ func (s *userService) ResetPassword(ctx context.Context, token, newPassword stri
 	if u == nil {
 		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "token ไม่ถูกต้องหรือหมดอายุ")
 	}
-	if u.PasswordResetTokenExpiresAt != nil && time.Now().After(*u.PasswordResetTokenExpiresAt) {
+	if u.PasswordResetTokenExpiresAt != nil && wela.NowUTC().After(*u.PasswordResetTokenExpiresAt) {
 		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "token หมดอายุแล้ว กรุณาขอใหม่")
 	}
 	hashed, err := s.authSvc.HashPassword(newPassword)
@@ -502,6 +506,35 @@ func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 		return custom_errors.NewInternalError("ไม่สามารถประมวลผล password ได้")
 	}
 	return s.repo.UpdateLocalAuthSecret(ctx, userID, hashed)
+}
+
+func (s *userService) AdminUpdateUser(ctx context.Context, targetID uuid.UUID, role, status string) (*user.User, error) {
+	validRoles := map[string]bool{user.UserRoleMember: true, user.UserRoleManager: true, user.UserRoleAdmin: true}
+	validStatuses := map[string]bool{user.UserStatusActive: true, user.UserStatusBanned: true, user.UserStatusPendingVerification: true}
+
+	if role != "" && !validRoles[role] {
+		return nil, custom_errors.NewBadRequestError("INVALID_ROLE", "role ไม่ถูกต้อง (member | manager | admin)")
+	}
+	if status != "" && !validStatuses[status] {
+		return nil, custom_errors.NewBadRequestError("INVALID_STATUS", "status ไม่ถูกต้อง (active | banned | pending_verification)")
+	}
+
+	if role != "" {
+		if err := s.repo.UpdateRole(ctx, targetID, role); err != nil {
+			return nil, custom_errors.NewInternalError("ไม่สามารถอัปเดต role ได้")
+		}
+	}
+	if status != "" {
+		if err := s.repo.UpdateStatus(ctx, targetID, status); err != nil {
+			return nil, custom_errors.NewInternalError("ไม่สามารถอัปเดต status ได้")
+		}
+	}
+
+	u, err := s.repo.GetByID(ctx, targetID)
+	if err != nil {
+		return nil, custom_errors.NewNotFoundError("USER_NOT_FOUND", "ไม่พบผู้ใช้งาน")
+	}
+	return u, nil
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

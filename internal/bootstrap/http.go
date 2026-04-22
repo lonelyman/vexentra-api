@@ -25,7 +25,8 @@ func NewFiberServer(cfg *config.Config, l logger.Logger) *fiber.App {
 			if errors.As(err, &appErr) {
 				return presenter.RenderError(c, appErr)
 			}
-			return presenter.RenderError(c, custom_errors.New(code, custom_errors.ErrInternal, err.Error()))
+			l.Error("UNHANDLED_ERROR", err)
+			return presenter.RenderError(c, custom_errors.New(code, custom_errors.ErrInternal, "เกิดข้อผิดพลาดภายในระบบ"))
 		},
 	})
 

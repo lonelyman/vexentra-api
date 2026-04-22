@@ -138,6 +138,35 @@ func (h *ProfileHandler) AddSkill(c fiber.Ctx) error {
 	return presenter.RenderItem(c, toSkillResponse(s), fiber.StatusCreated)
 }
 
+// AdminAddSkill — POST /api/v1/users/:id/skills (admin only)
+func (h *ProfileHandler) AdminAddSkill(c fiber.Ctx) error {
+	userID, parseErr := uuid.Parse(c.Params("id"))
+	if parseErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+
+	var req AddSkillRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, &req); !vResult.IsValid {
+		return custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors)
+	}
+
+	s := &user.Skill{
+		Name:        req.Name,
+		Category:    req.Category,
+		Proficiency: req.Proficiency,
+		SortOrder:   req.SortOrder,
+	}
+
+	if svcErr := h.svc.AdminAddSkill(c.Context(), userID, s); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toSkillResponse(s), fiber.StatusCreated)
+}
+
 // RemoveSkill — DELETE /api/v1/me/skills/:skillID
 func (h *ProfileHandler) RemoveSkill(c fiber.Ctx) error {
 	personID, err := ownerPersonID(c)
@@ -175,6 +204,73 @@ func (h *ProfileHandler) AddExperience(c fiber.Ctx) error {
 	}
 
 	return presenter.RenderItem(c, toExperienceResponse(e), fiber.StatusCreated)
+}
+
+// AdminAddExperience — POST /api/v1/users/:id/experiences (admin only)
+func (h *ProfileHandler) AdminAddExperience(c fiber.Ctx) error {
+	userID, parseErr := uuid.Parse(c.Params("id"))
+	if parseErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+
+	var req AddExperienceRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, &req); !vResult.IsValid {
+		return custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors)
+	}
+
+	e := req.ToEntity()
+	if svcErr := h.svc.AdminAddExperience(c.Context(), userID, e); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toExperienceResponse(e), fiber.StatusCreated)
+}
+
+// AdminUpdateExperience — PUT /api/v1/users/:id/experiences/:expID (admin only)
+func (h *ProfileHandler) AdminUpdateExperience(c fiber.Ctx) error {
+	userID, parseUserErr := uuid.Parse(c.Params("id"))
+	if parseUserErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+	expID, parseExpErr := uuid.Parse(c.Params("expID"))
+	if parseExpErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "experience ID ไม่ถูกต้อง"))
+	}
+
+	var req AddExperienceRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, &req); !vResult.IsValid {
+		return custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors)
+	}
+
+	e := req.ToEntity()
+	if svcErr := h.svc.AdminUpdateExperience(c.Context(), userID, expID, e); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toExperienceResponse(e))
+}
+
+// AdminRemoveExperience — DELETE /api/v1/users/:id/experiences/:expID (admin only)
+func (h *ProfileHandler) AdminRemoveExperience(c fiber.Ctx) error {
+	userID, parseUserErr := uuid.Parse(c.Params("id"))
+	if parseUserErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+	expID, parseExpErr := uuid.Parse(c.Params("expID"))
+	if parseExpErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "experience ID ไม่ถูกต้อง"))
+	}
+
+	if svcErr := h.svc.AdminRemoveExperience(c.Context(), userID, expID); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // UpdateExperience — PUT /api/v1/me/experiences/:expID
@@ -238,6 +334,29 @@ func (h *ProfileHandler) AddPortfolioItem(c fiber.Ctx) error {
 
 	item := req.ToEntity()
 	if svcErr := h.svc.AddPortfolioItem(c.Context(), personID, item, req.Tags); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toPortfolioItemResponse(item), fiber.StatusCreated)
+}
+
+// AdminAddPortfolioItem — POST /api/v1/users/:id/portfolio (admin only)
+func (h *ProfileHandler) AdminAddPortfolioItem(c fiber.Ctx) error {
+	userID, parseErr := uuid.Parse(c.Params("id"))
+	if parseErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+
+	var req AddPortfolioItemRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, &req); !vResult.IsValid {
+		return custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors)
+	}
+
+	item := req.ToEntity()
+	if svcErr := h.svc.AdminAddPortfolioItem(c.Context(), userID, item, req.Tags); svcErr != nil {
 		return presenter.RenderError(c, svcErr)
 	}
 

@@ -14,6 +14,7 @@ import (
 	"vexentra-api/pkg/wela"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -44,7 +45,25 @@ type UpdateProjectInput struct {
 }
 
 type CloseProjectInput struct {
-	Reason project.ProjectClosureReason
+	Reason   project.ProjectClosureReason
+	ClosedAt *time.Time
+}
+
+type ProjectPaymentInstallmentInput struct {
+	SortOrder           int
+	Title               string
+	Amount              decimal.Decimal
+	PlannedDeliveryDate *time.Time
+	PlannedReceiveDate  *time.Time
+	Note                *string
+}
+
+type UpsertFinancialPlanInput struct {
+	ContractAmount      decimal.Decimal
+	RetentionAmount     decimal.Decimal
+	PlannedDeliveryDate *time.Time
+	PaymentNote         *string
+	Installments        []ProjectPaymentInstallmentInput
 }
 
 type ProjectService interface {
@@ -53,9 +72,12 @@ type ProjectService interface {
 	Get(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.Project, error)
 	GetByCode(ctx context.Context, caller user.Caller, code string) (*project.Project, error)
 	List(ctx context.Context, caller user.Caller, f project.ProjectFilter, pg project.Pagination) ([]*project.Project, int64, error)
+	ListStatuses(ctx context.Context, caller user.Caller, activeOnly bool) ([]project.ProjectStatusMeta, error)
+	GetFinancialPlan(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.ProjectFinancialPlan, error)
 
 	Update(ctx context.Context, caller user.Caller, id uuid.UUID, in UpdateProjectInput) (*project.Project, error)
 	Close(ctx context.Context, caller user.Caller, id uuid.UUID, in CloseProjectInput) (*project.Project, error)
+	UpsertFinancialPlan(ctx context.Context, caller user.Caller, id uuid.UUID, in UpsertFinancialPlanInput) (*project.ProjectFinancialPlan, error)
 	Delete(ctx context.Context, caller user.Caller, id uuid.UUID) error
 
 	// CanAccessProject is exposed so other services (transactions, members)
@@ -154,7 +176,7 @@ func (s *projectService) Update(ctx context.Context, caller user.Caller, id uuid
 	if err != nil {
 		return nil, err
 	}
-	if p.Status == project.ProjectStatusClosed {
+	if p.Status == project.ProjectStatusClosed && !caller.IsStaff() {
 		return nil, custom_errors.New(409, "PROJECT_CLOSED", "โปรเจกต์ปิดแล้ว ไม่สามารถแก้ไขได้ — ใช้ Reopen ก่อน")
 	}
 	if in.Status == project.ProjectStatusClosed {
@@ -183,6 +205,12 @@ func (s *projectService) Update(ctx context.Context, caller user.Caller, id uuid
 	p.Name = name
 	p.Description = in.Description
 	p.Status = in.Status
+	if in.Status != project.ProjectStatusClosed {
+		// Reopen path: when moving from terminal status back to open statuses,
+		// closed markers must be cleared to satisfy DB consistency checks.
+		p.ClosedAt = nil
+		p.ClosureReason = nil
+	}
 	p.ClientPersonID = in.ClientPersonID
 	p.ClientNameRaw = in.ClientNameRaw
 	p.ClientEmailRaw = in.ClientEmailRaw
@@ -208,15 +236,18 @@ func (s *projectService) Close(ctx context.Context, caller user.Caller, id uuid.
 	if !isValidClosureReason(in.Reason) {
 		return nil, custom_errors.New(400, custom_errors.ErrValidation, "closure_reason ไม่ถูกต้อง")
 	}
+	if in.ClosedAt == nil {
+		return nil, custom_errors.New(400, custom_errors.ErrValidation, "ต้องระบุวันที่ปิดโครงการ (closed_at)")
+	}
 	if p.ClientPersonID == nil {
 		return nil, custom_errors.New(400, custom_errors.ErrValidation, "โปรเจกต์ต้องมีลูกค้าก่อนปิดงาน")
 	}
 
-	now := wela.NowUTC()
+	closedAt := in.ClosedAt.UTC()
 	reason := in.Reason
 	p.Status = project.ProjectStatusClosed
 	p.ClosureReason = &reason
-	p.ClosedAt = &now
+	p.ClosedAt = &closedAt
 
 	if err := s.projectRepo.Update(ctx, p); err != nil {
 		return nil, err
@@ -290,6 +321,95 @@ func (s *projectService) List(ctx context.Context, caller user.Caller, f project
 		pg.Offset = 0
 	}
 	return s.projectRepo.List(ctx, f, pg)
+}
+
+func (s *projectService) ListStatuses(ctx context.Context, caller user.Caller, activeOnly bool) ([]project.ProjectStatusMeta, error) {
+	// Any authenticated user can read project status master data.
+	_ = caller
+	return s.projectRepo.ListStatuses(ctx, activeOnly)
+}
+
+func (s *projectService) GetFinancialPlan(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.ProjectFinancialPlan, error) {
+	if _, err := s.CanAccessProject(ctx, caller, id); err != nil {
+		return nil, err
+	}
+	return s.projectRepo.GetFinancialPlan(ctx, id)
+}
+
+func (s *projectService) UpsertFinancialPlan(ctx context.Context, caller user.Caller, id uuid.UUID, in UpsertFinancialPlanInput) (*project.ProjectFinancialPlan, error) {
+	p, err := s.requireModifyAccess(ctx, caller, id)
+	if err != nil {
+		return nil, err
+	}
+	if p.Status == project.ProjectStatusClosed && !caller.IsStaff() {
+		return nil, custom_errors.New(409, "PROJECT_CLOSED", "โปรเจกต์ปิดแล้ว ไม่สามารถแก้ไขแผนค่าจ้างได้")
+	}
+
+	if in.ContractAmount.IsNegative() {
+		return nil, custom_errors.New(400, custom_errors.ErrValidation, "ค่าจ้างตามสัญญาต้องไม่เป็นค่าติดลบ")
+	}
+	if in.RetentionAmount.IsNegative() {
+		return nil, custom_errors.New(400, custom_errors.ErrValidation, "เงินประกันต้องไม่เป็นค่าติดลบ")
+	}
+	if in.RetentionAmount.GreaterThan(in.ContractAmount) {
+		return nil, custom_errors.New(400, custom_errors.ErrValidation, "เงินประกันต้องไม่เกินค่าจ้างตามสัญญา")
+	}
+
+	netReceivable := in.ContractAmount.Sub(in.RetentionAmount)
+	installments := make([]*project.ProjectPaymentInstallment, 0, len(in.Installments))
+	sumInstallments := decimal.Zero
+
+	for i := range in.Installments {
+		item := in.Installments[i]
+		title := strings.TrimSpace(item.Title)
+		if title == "" {
+			return nil, custom_errors.New(400, custom_errors.ErrValidation, "ชื่องวดห้ามว่าง")
+		}
+		if item.Amount.LessThanOrEqual(decimal.Zero) {
+			return nil, custom_errors.New(400, custom_errors.ErrValidation, "จำนวนเงินในงวดต้องมากกว่า 0")
+		}
+		sortOrder := item.SortOrder
+		if sortOrder <= 0 {
+			sortOrder = i + 1
+		}
+		id, idErr := uuid.NewV7()
+		if idErr != nil {
+			return nil, custom_errors.NewInternalError("ไม่สามารถสร้างรหัสงวดชำระได้")
+		}
+
+		sumInstallments = sumInstallments.Add(item.Amount)
+		installments = append(installments, &project.ProjectPaymentInstallment{
+			ID:                  id,
+			ProjectID:           p.ID,
+			SortOrder:           sortOrder,
+			Title:               title,
+			Amount:              item.Amount,
+			PlannedDeliveryDate: item.PlannedDeliveryDate,
+			PlannedReceiveDate:  item.PlannedReceiveDate,
+			Note:                item.Note,
+		})
+	}
+
+	if sumInstallments.GreaterThan(netReceivable) {
+		return nil, custom_errors.New(400, custom_errors.ErrValidation, "ยอดรวมงวดชำระต้องไม่เกินยอดสุทธิหลังหักเงินประกัน")
+	}
+
+	plan := &project.ProjectFinancialPlan{
+		ProjectID:            p.ID,
+		ContractAmount:       in.ContractAmount,
+		RetentionAmount:      in.RetentionAmount,
+		PlannedDeliveryDate:  in.PlannedDeliveryDate,
+		PaymentNote:          in.PaymentNote,
+		Installments:         installments,
+		InstallmentsTotal:    sumInstallments,
+		NetReceivable:        netReceivable,
+		UnallocatedRemaining: netReceivable.Sub(sumInstallments),
+	}
+
+	if err := s.projectRepo.UpsertFinancialPlan(ctx, plan); err != nil {
+		return nil, err
+	}
+	return s.projectRepo.GetFinancialPlan(ctx, p.ID)
 }
 
 // CanAccessProject returns the project if caller is allowed to read it, else

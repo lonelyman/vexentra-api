@@ -16,10 +16,48 @@ Go REST API built with Clean Architecture, designed for production from day one.
 | Logger     | slog (JSON production / PrettyHandler development) |
 | Validation | go-playground/validator v10                        |
 | Container  | Docker + Docker Compose                            |
+| **Time**   | **`pkg/wela` — Bangkok timezone + พ.ศ. utility**   |
 
 > **Schema is managed by SQL migrations only.** GORM `AutoMigrate` has been removed —
 > structural changes must go through `database/migrations/*.sql` (goose). GORM is used
 > strictly as a query builder / ORM.
+
+---
+
+## Coding Conventions
+
+### Time & Date — ใช้ `pkg/wela` เสมอ
+
+**ห้ามใช้ `time.Now()` โดยตรง** ให้ใช้ `wela` แทนทุกกรณี:
+
+```go
+import "vexentra-api/pkg/wela"
+
+// ✅ ถูกต้อง
+now := wela.NowUTC()                    // เก็บลง DB
+expiresAt := wela.NowUTC().Add(1 * time.Hour)
+wela.NowUTC().After(someTime)
+
+// ❌ ห้ามใช้
+now := time.Now()
+now := time.Now().UTC()
+```
+
+**ห้ามใช้ layout string โดยตรง** ให้ใช้ฟังก์ชันของ `wela` แทน:
+
+```go
+// ✅ ถูกต้อง
+wela.FormatRFC3339(t)          // แทน t.Format("2006-01-02T15:04:05Z07:00")
+wela.FormatISODate(t)          // แทน t.Format("2006-01-02")
+wela.ParseRFC3339Any(raw)      // แทน time.Parse(time.RFC3339, raw)
+
+// ❌ ห้ามใช้
+t.Format("2006-01-02")
+t.Format("2006-01-02T15:04:05Z07:00")
+time.Parse(time.RFC3339, raw)
+```
+
+ดู API ทั้งหมดได้ที่ [`pkg/wela/README.md`](pkg/wela/README.md)
 
 ---
 
@@ -110,11 +148,11 @@ Schema lives under `database/migrations/` and is applied with
 
 Applied migrations (as of 2026-04-22):
 
-| Version           | Name                    | Purpose                                                         |
-| ----------------- | ----------------------- | --------------------------------------------------------------- |
-| 20260422000001    | baseline                | Snapshot of GORM-managed schema (idempotent `CREATE IF NOT EXISTS`) |
-| 20260422000002    | schema_hardening        | deleted_at on all tables, case-insensitive unique indexes, FK fixes, phantom-person backfill |
-| 20260422000003    | project_management      | projects, project_members, transaction_categories, project_transactions (+ enums, seeds, CHECK constraints) |
+| Version        | Name               | Purpose                                                                                                     |
+| -------------- | ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| 20260422000001 | baseline           | Snapshot of GORM-managed schema (idempotent `CREATE IF NOT EXISTS`)                                         |
+| 20260422000002 | schema_hardening   | deleted_at on all tables, case-insensitive unique indexes, FK fixes, phantom-person backfill                |
+| 20260422000003 | project_management | projects, project_members, transaction_categories, project_transactions (+ enums, seeds, CHECK constraints) |
 
 **Workflow:**
 

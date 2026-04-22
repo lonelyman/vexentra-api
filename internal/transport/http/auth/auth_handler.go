@@ -1,6 +1,7 @@
 package authhdl
 
 import (
+	"vexentra-api/internal/modules/user"
 	"vexentra-api/internal/modules/user/usersvc"
 	"vexentra-api/internal/transport/http/presenter"
 	"vexentra-api/pkg/auth"
@@ -95,6 +96,9 @@ func (h *AuthHandler) RefreshToken(c fiber.Ctx) error {
 	currentUser, err := h.userSvc.GetProfile(c.Context(), userID)
 	if err != nil {
 		return err
+	}
+	if currentUser.Status == user.UserStatusBanned {
+		return custom_errors.New(403, custom_errors.ErrForbidden, "บัญชีนี้ถูกระงับการใช้งาน")
 	}
 
 	tokenPair, err := h.authSvc.GenerateTokenPair(claims.GetUserID(), claims.GetPersonID(), currentUser.Role)

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // ProjectStatus is the lifecycle state of a Project.
@@ -18,6 +19,25 @@ const (
 	ProjectStatusOnHold  ProjectStatus = "on_hold"
 	ProjectStatusClosed  ProjectStatus = "closed"
 )
+
+type ProjectStatusPhase string
+
+const (
+	ProjectStatusPhaseBacklog  ProjectStatusPhase = "backlog"
+	ProjectStatusPhasePreSales ProjectStatusPhase = "pre_sales"
+	ProjectStatusPhaseDelivery ProjectStatusPhase = "delivery"
+	ProjectStatusPhaseTerminal ProjectStatusPhase = "terminal"
+)
+
+type ProjectStatusMeta struct {
+	Status         ProjectStatus
+	LabelTH        string
+	Phase          ProjectStatusPhase
+	SortOrder      int
+	IsTerminal     bool
+	RequiresClient bool
+	IsActive       bool
+}
 
 // ProjectClosureReason records why a project reached the terminal `closed` state.
 // Required when Status == ProjectStatusClosed; must be nil otherwise (DB CHECK enforces bijection).
@@ -59,4 +79,31 @@ type Project struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	DeletedAt       *time.Time
+}
+
+type ProjectPaymentInstallment struct {
+	ID                  uuid.UUID
+	ProjectID           uuid.UUID
+	SortOrder           int
+	Title               string
+	Amount              decimal.Decimal
+	PlannedDeliveryDate *time.Time
+	PlannedReceiveDate  *time.Time
+	Note                *string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type ProjectFinancialPlan struct {
+	ProjectID            uuid.UUID
+	ContractAmount       decimal.Decimal
+	RetentionAmount      decimal.Decimal
+	PlannedDeliveryDate  *time.Time
+	PaymentNote          *string
+	Installments         []*ProjectPaymentInstallment
+	InstallmentsTotal    decimal.Decimal
+	NetReceivable        decimal.Decimal
+	UnallocatedRemaining decimal.Decimal
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }

@@ -70,6 +70,7 @@ type UserService interface {
 	// Admin — user management
 	GetUserByID(ctx context.Context, userID uuid.UUID) (*user.User, error)
 	AdminUpdateUser(ctx context.Context, targetID uuid.UUID, role, status string) (*user.User, error)
+	AdminSetPassword(ctx context.Context, targetID uuid.UUID, newPassword string) error
 	AdminCreateUser(ctx context.Context, email, password, displayName, role string) (*user.User, error)
 }
 
@@ -547,6 +548,30 @@ func (s *userService) AdminUpdateUser(ctx context.Context, targetID uuid.UUID, r
 		return nil, custom_errors.NewNotFoundError("USER_NOT_FOUND", "ไม่พบผู้ใช้งาน")
 	}
 	return u, nil
+}
+
+func (s *userService) AdminSetPassword(ctx context.Context, targetID uuid.UUID, newPassword string) error {
+	u, err := s.repo.GetByID(ctx, targetID)
+	if err != nil || u == nil {
+		return custom_errors.NewNotFoundError("USER_NOT_FOUND", "ไม่พบผู้ใช้งาน")
+	}
+
+	a, err := s.repo.GetAuthByUserAndProvider(ctx, targetID, user.AuthProviderLocal)
+	if err != nil {
+		return err
+	}
+	if a == nil {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "บัญชีนี้ไม่ได้ใช้ local password")
+	}
+
+	hashed, err := s.authSvc.HashPassword(newPassword)
+	if err != nil {
+		return custom_errors.NewInternalError("ไม่สามารถประมวลผล password ได้")
+	}
+	if err := s.repo.UpdateLocalAuthSecret(ctx, targetID, hashed); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *userService) GetUserByID(ctx context.Context, userID uuid.UUID) (*user.User, error) {

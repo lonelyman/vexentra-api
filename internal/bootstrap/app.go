@@ -76,7 +76,7 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	txRepo := pgproject.NewProjectTransactionRepository(db, l)
 	categoryRepo := pgtxcategory.NewTransactionCategoryRepository(db, l)
 
-	userSvc := usersvc.NewUserService(userRepo, personRepo, authSvc, l)
+	userSvc := usersvc.NewUserService(db, userRepo, personRepo, authSvc, l)
 	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, socialPlatformRepo, l)
 	socialPlatformSvc := platformsvc.NewSocialPlatformService(socialPlatformRepo, l)
 	projectSvc := projectsvc.NewProjectService(db, projectRepo, memberRepo, cfg.App.ProjectCodePrefix, l)
@@ -85,7 +85,7 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	categorySvc := txcategorysvc.NewTransactionCategoryService(categoryRepo, l)
 
 	taskRepo := pgtask.NewTaskRepository(db, l)
-	taskSvc := tasksvc.New(projectSvc, taskRepo, l)
+	taskSvc := tasksvc.New(projectSvc, memberRepo, taskRepo, l)
 	dashboardSvc := dashboardsvc.New(db, l)
 
 	userHdl := userhdl.NewUserHandler(userSvc, l)

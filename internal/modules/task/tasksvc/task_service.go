@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"vexentra-api/internal/modules/project"
 	"vexentra-api/internal/modules/project/projectsvc"
 	"vexentra-api/internal/modules/task"
 	"vexentra-api/internal/modules/user"
@@ -41,12 +42,14 @@ type TaskService interface {
 
 type taskService struct {
 	projectSvc projectsvc.ProjectService
+	memberRepo project.ProjectMemberRepository
 	taskRepo   task.TaskRepository
 	logger     logger.Logger
 }
 
 func New(
 	projectSvc projectsvc.ProjectService,
+	memberRepo project.ProjectMemberRepository,
 	taskRepo task.TaskRepository,
 	l logger.Logger,
 ) TaskService {
@@ -55,6 +58,7 @@ func New(
 	}
 	return &taskService{
 		projectSvc: projectSvc,
+		memberRepo: memberRepo,
 		taskRepo:   taskRepo,
 		logger:     l,
 	}
@@ -63,6 +67,9 @@ func New(
 // Create adds a task to the project. Any active project member may create tasks.
 func (s *taskService) Create(ctx context.Context, caller user.Caller, projectID uuid.UUID, in CreateTaskInput) (*task.Task, error) {
 	if _, err := s.projectSvc.CanAccessProject(ctx, caller, projectID); err != nil {
+		return nil, err
+	}
+	if err := s.validateAssignee(ctx, projectID, in.AssignedPersonID); err != nil {
 		return nil, err
 	}
 
@@ -125,6 +132,9 @@ func (s *taskService) Update(ctx context.Context, caller user.Caller, projectID,
 	if _, err := s.projectSvc.CanAccessProject(ctx, caller, projectID); err != nil {
 		return nil, err
 	}
+	if err := s.validateAssignee(ctx, projectID, in.AssignedPersonID); err != nil {
+		return nil, err
+	}
 
 	t, err := s.taskRepo.GetByID(ctx, taskID)
 	if err != nil {
@@ -160,7 +170,8 @@ func (s *taskService) Update(ctx context.Context, caller user.Caller, projectID,
 
 // Delete soft-deletes a task. Creator, project lead/creator, and staff may delete.
 func (s *taskService) Delete(ctx context.Context, caller user.Caller, projectID, taskID uuid.UUID) error {
-	if _, err := s.projectSvc.CanAccessProject(ctx, caller, projectID); err != nil {
+	p, err := s.projectSvc.CanAccessProject(ctx, caller, projectID)
+	if err != nil {
 		return err
 	}
 	t, err := s.taskRepo.GetByID(ctx, taskID)
@@ -170,10 +181,18 @@ func (s *taskService) Delete(ctx context.Context, caller user.Caller, projectID,
 	if t == nil || t.ProjectID != projectID {
 		return custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบงานนี้")
 	}
-	if !caller.IsStaff() && t.CreatedByUserID != caller.UserID {
-		return custom_errors.New(403, custom_errors.ErrForbidden, "เฉพาะผู้สร้างงานหรือผู้ดูแลระบบเท่านั้นที่ลบงานได้")
+	if caller.IsStaff() || t.CreatedByUserID == caller.UserID || p.CreatedByUserID == caller.UserID {
+		return s.taskRepo.Delete(ctx, taskID)
 	}
-	return s.taskRepo.Delete(ctx, taskID)
+
+	lead, err := s.memberRepo.GetActiveLead(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	if lead != nil && lead.PersonID == caller.PersonID {
+		return s.taskRepo.Delete(ctx, taskID)
+	}
+	return custom_errors.New(403, custom_errors.ErrForbidden, "เฉพาะผู้สร้างงาน ผู้สร้างโปรเจกต์ หัวหน้าทีม หรือผู้ดูแลระบบเท่านั้นที่ลบงานได้")
 }
 
 func isValidStatus(s task.TaskStatus) bool {
@@ -190,4 +209,18 @@ func isValidPriority(p task.TaskPriority) bool {
 		return true
 	}
 	return false
+}
+
+func (s *taskService) validateAssignee(ctx context.Context, projectID uuid.UUID, assignedPersonID *uuid.UUID) error {
+	if assignedPersonID == nil {
+		return nil
+	}
+	m, err := s.memberRepo.GetActiveByProjectAndPerson(ctx, projectID, *assignedPersonID)
+	if err != nil {
+		return err
+	}
+	if m == nil {
+		return custom_errors.New(400, custom_errors.ErrValidation, "assigned_person_id ต้องเป็นสมาชิกโปรเจกต์")
+	}
+	return nil
 }

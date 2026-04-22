@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"time"
+	"vexentra-api/internal/adapters/database/postgres/pgtx"
 	"vexentra-api/internal/modules/user"
 	"vexentra-api/pkg/custom_errors"
 	"vexentra-api/pkg/logger"
@@ -133,7 +134,7 @@ func (r *userRepository) UpdateLastLogin(ctx context.Context, userID uuid.UUID, 
 }
 
 func (r *userRepository) UpdatePersonID(ctx context.Context, userID, personID uuid.UUID) error {
-	if err := r.db.WithContext(ctx).Model(&userModel{}).
+	if err := pgtx.DB(ctx, r.db).WithContext(ctx).Model(&userModel{}).
 		Where("id = ?", userID).
 		Update("person_id", personID).Error; err != nil {
 		r.logger.Error("DB_UPDATE_PERSON_ID_ERROR", err)
@@ -359,4 +360,3 @@ func (r *userRepository) ListAfterCursor(ctx context.Context, afterID uuid.UUID,
 	}
 	return users, nil
 }
-

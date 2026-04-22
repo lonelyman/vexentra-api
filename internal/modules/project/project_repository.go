@@ -27,6 +27,9 @@ type ProjectRepository interface {
 	Create(ctx context.Context, p *Project) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Project, error)
 	GetByCode(ctx context.Context, code string) (*Project, error)
+	ListStatuses(ctx context.Context, activeOnly bool) ([]ProjectStatusMeta, error)
+	GetFinancialPlan(ctx context.Context, projectID uuid.UUID) (*ProjectFinancialPlan, error)
+	UpsertFinancialPlan(ctx context.Context, plan *ProjectFinancialPlan) error
 
 	List(ctx context.Context, f ProjectFilter, pg Pagination) (items []*Project, total int64, err error)
 

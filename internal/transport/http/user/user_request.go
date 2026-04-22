@@ -19,6 +19,12 @@ type ChangePasswordRequest struct {
 	NewPassword     string `json:"new_password"     validate:"required,strong_password" vmsg:"required:กรุณาระบุรหัสผ่านใหม่"`
 }
 
+// AdminSetPasswordRequest is the request body for PUT /api/v1/users/:id/password (admin only).
+type AdminSetPasswordRequest struct {
+	NewPassword string `json:"new_password" validate:"required,strong_password"         vmsg:"required:กรุณาระบุรหัสผ่านใหม่"`
+	RePassword  string `json:"re_password"  validate:"required,eqfield=NewPassword"     vmsg:"required:กรุณายืนยันรหัสผ่านใหม่,eqfield:รหัสผ่านไม่ตรงกัน"`
+}
+
 // AdminCreateUserRequest is the request body for POST /api/v1/users (admin only).
 type AdminCreateUserRequest struct {
 	Email       string `json:"email"        validate:"required,email"                             vmsg:"required:กรุณาระบุอีเมล,email:รูปแบบอีเมลไม่ถูกต้อง"`

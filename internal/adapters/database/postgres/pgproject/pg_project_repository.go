@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"vexentra-api/internal/adapters/database/postgres/pgtx"
 	"vexentra-api/internal/modules/project"
@@ -11,6 +12,7 @@ import (
 	"vexentra-api/pkg/logger"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -66,6 +68,151 @@ func (r *projectRepository) GetByCode(ctx context.Context, code string) (*projec
 		return nil, err
 	}
 	return m.ToEntity(), nil
+}
+
+func (r *projectRepository) ListStatuses(ctx context.Context, activeOnly bool) ([]project.ProjectStatusMeta, error) {
+	q := pgtx.DB(ctx, r.db).WithContext(ctx).Model(&projectStatusModel{})
+	if activeOnly {
+		q = q.Where("is_active = ?", true)
+	}
+
+	var models []projectStatusModel
+	if err := q.Order("sort_order ASC").Order("status ASC").Find(&models).Error; err != nil {
+		r.logger.Error("DB_LIST_PROJECT_STATUSES_ERROR", err)
+		return nil, err
+	}
+
+	items := make([]project.ProjectStatusMeta, len(models))
+	for i := range models {
+		items[i] = models[i].ToEntity()
+	}
+	return items, nil
+}
+
+func (r *projectRepository) GetFinancialPlan(ctx context.Context, projectID uuid.UUID) (*project.ProjectFinancialPlan, error) {
+	db := pgtx.DB(ctx, r.db).WithContext(ctx)
+
+	var planModel projectFinancialPlanModel
+	err := db.First(&planModel, "project_id = ?", projectID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			zero := decimal.Zero
+			return &project.ProjectFinancialPlan{
+				ProjectID:            projectID,
+				ContractAmount:       zero,
+				RetentionAmount:      zero,
+				Installments:         []*project.ProjectPaymentInstallment{},
+				InstallmentsTotal:    zero,
+				NetReceivable:        zero,
+				UnallocatedRemaining: zero,
+			}, nil
+		}
+		r.logger.Error("DB_GET_PROJECT_FINANCIAL_PLAN_ERROR", err)
+		return nil, err
+	}
+
+	var rows []projectPaymentInstallmentModel
+	if err := db.
+		Where("project_id = ?", projectID).
+		Order("sort_order ASC, created_at ASC").
+		Find(&rows).Error; err != nil {
+		r.logger.Error("DB_LIST_PROJECT_INSTALLMENTS_ERROR", err)
+		return nil, err
+	}
+
+	items := make([]*project.ProjectPaymentInstallment, len(rows))
+	sum := decimal.Zero
+	for i := range rows {
+		items[i] = rows[i].ToEntity()
+		sum = sum.Add(rows[i].Amount)
+	}
+
+	net := planModel.ContractAmount.Sub(planModel.RetentionAmount)
+	return &project.ProjectFinancialPlan{
+		ProjectID:            planModel.ProjectID,
+		ContractAmount:       planModel.ContractAmount,
+		RetentionAmount:      planModel.RetentionAmount,
+		PlannedDeliveryDate:  planModel.PlannedDeliveryDate,
+		PaymentNote:          planModel.PaymentNote,
+		Installments:         items,
+		InstallmentsTotal:    sum,
+		NetReceivable:        net,
+		UnallocatedRemaining: net.Sub(sum),
+		CreatedAt:            planModel.CreatedAt,
+		UpdatedAt:            planModel.UpdatedAt,
+	}, nil
+}
+
+func (r *projectRepository) UpsertFinancialPlan(ctx context.Context, plan *project.ProjectFinancialPlan) error {
+	db := pgtx.DB(ctx, r.db).WithContext(ctx)
+	now := time.Now().UTC()
+
+	planModel := &projectFinancialPlanModel{
+		ProjectID:           plan.ProjectID,
+		ContractAmount:      plan.ContractAmount,
+		RetentionAmount:     plan.RetentionAmount,
+		PlannedDeliveryDate: plan.PlannedDeliveryDate,
+		PaymentNote:         plan.PaymentNote,
+		UpdatedAt:           now,
+	}
+
+	if err := db.
+		Model(&projectFinancialPlanModel{}).
+		Where("project_id = ?", plan.ProjectID).
+		Updates(map[string]any{
+			"contract_amount":       planModel.ContractAmount,
+			"retention_amount":      planModel.RetentionAmount,
+			"planned_delivery_date": planModel.PlannedDeliveryDate,
+			"payment_note":          planModel.PaymentNote,
+			"updated_at":            planModel.UpdatedAt,
+		}).Error; err != nil {
+		r.logger.Error("DB_UPDATE_PROJECT_FINANCIAL_PLAN_ERROR", err)
+		return err
+	}
+
+	res := db.Model(&projectFinancialPlanModel{}).Where("project_id = ?", plan.ProjectID).Select("project_id").First(&projectFinancialPlanModel{})
+	if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+		planModel.CreatedAt = now
+		if err := db.Create(planModel).Error; err != nil {
+			r.logger.Error("DB_CREATE_PROJECT_FINANCIAL_PLAN_ERROR", err)
+			return err
+		}
+	} else if res.Error != nil {
+		r.logger.Error("DB_CHECK_PROJECT_FINANCIAL_PLAN_ERROR", res.Error)
+		return res.Error
+	}
+
+	if err := db.Where("project_id = ?", plan.ProjectID).Delete(&projectPaymentInstallmentModel{}).Error; err != nil {
+		r.logger.Error("DB_DELETE_PROJECT_INSTALLMENTS_ERROR", err)
+		return err
+	}
+
+	if len(plan.Installments) == 0 {
+		return nil
+	}
+
+	rows := make([]projectPaymentInstallmentModel, len(plan.Installments))
+	for i := range plan.Installments {
+		item := plan.Installments[i]
+		rows[i] = projectPaymentInstallmentModel{
+			ID:                  item.ID,
+			ProjectID:           plan.ProjectID,
+			SortOrder:           item.SortOrder,
+			Title:               item.Title,
+			Amount:              item.Amount,
+			PlannedDeliveryDate: item.PlannedDeliveryDate,
+			PlannedReceiveDate:  item.PlannedReceiveDate,
+			Note:                item.Note,
+			CreatedAt:           now,
+			UpdatedAt:           now,
+		}
+	}
+
+	if err := db.Create(&rows).Error; err != nil {
+		r.logger.Error("DB_CREATE_PROJECT_INSTALLMENTS_ERROR", err)
+		return err
+	}
+	return nil
 }
 
 func (r *projectRepository) List(ctx context.Context, f project.ProjectFilter, pg project.Pagination) ([]*project.Project, int64, error) {

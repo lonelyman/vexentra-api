@@ -279,6 +279,7 @@ func (r *profileRepository) UpdateExperience(ctx context.Context, e *user.Experi
 	updates := map[string]any{
 		"company":     e.Company,
 		"position":    e.Position,
+		"location":    e.Location,
 		"description": e.Description,
 		"started_at":  e.StartedAt,
 		"ended_at":    e.EndedAt, // nil clears the column

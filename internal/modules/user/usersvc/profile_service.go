@@ -12,36 +12,36 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetFullProfileResult bundles all profile data for GET /api/v1/users/:id/profile.
+// GetFullProfileResult bundles all profile data for GET /api/v1/persons/:id/profile.
 type GetFullProfileResult struct {
 	User        *user.User
-	Profile     *user.Profile // nil if the user has not set up a profile yet
+	Profile     *user.Profile // nil if the person has not set up a profile yet
 	Skills      []*user.Skill
 	Experiences []*user.Experience
 	Portfolio   []*user.PortfolioItem
 }
 
 type ProfileService interface {
-	// GetFullProfile returns the complete profile for any user.
+	// GetFullProfile returns the complete profile for any person.
 	// viewerIsOwner=true shows draft portfolio items; false shows published only.
-	GetFullProfile(ctx context.Context, userID uuid.UUID, viewerIsOwner bool) (*GetFullProfileResult, error)
+	GetFullProfile(ctx context.Context, personID uuid.UUID, viewerIsOwner bool) (*GetFullProfileResult, error)
 
-	UpsertProfile(ctx context.Context, userID uuid.UUID, p *user.Profile) error
+	UpsertProfile(ctx context.Context, personID uuid.UUID, p *user.Profile) error
 
-	AddSkill(ctx context.Context, userID uuid.UUID, s *user.Skill) error
-	RemoveSkill(ctx context.Context, skillID, userID uuid.UUID) error
+	AddSkill(ctx context.Context, personID uuid.UUID, s *user.Skill) error
+	RemoveSkill(ctx context.Context, skillID, personID uuid.UUID) error
 
-	AddExperience(ctx context.Context, userID uuid.UUID, e *user.Experience) error
-	UpdateExperience(ctx context.Context, expID, userID uuid.UUID, e *user.Experience) error
-	RemoveExperience(ctx context.Context, expID, userID uuid.UUID) error
+	AddExperience(ctx context.Context, personID uuid.UUID, e *user.Experience) error
+	UpdateExperience(ctx context.Context, expID, personID uuid.UUID, e *user.Experience) error
+	RemoveExperience(ctx context.Context, expID, personID uuid.UUID) error
 
-	AddPortfolioItem(ctx context.Context, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
-	UpdatePortfolioItem(ctx context.Context, itemID, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
-	RemovePortfolioItem(ctx context.Context, itemID, userID uuid.UUID) error
+	AddPortfolioItem(ctx context.Context, personID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
+	UpdatePortfolioItem(ctx context.Context, itemID, personID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
+	RemovePortfolioItem(ctx context.Context, itemID, personID uuid.UUID) error
 
-	ListSocialLinks(ctx context.Context, userID uuid.UUID) ([]*user.SocialLink, error)
-	UpsertSocialLink(ctx context.Context, userID, platformID uuid.UUID, url string, sortOrder int) (*user.SocialLink, error)
-	DeleteSocialLink(ctx context.Context, linkID, userID uuid.UUID) error
+	ListSocialLinks(ctx context.Context, personID uuid.UUID) ([]*user.SocialLink, error)
+	UpsertSocialLink(ctx context.Context, personID, platformID uuid.UUID, url string, sortOrder int) (*user.SocialLink, error)
+	DeleteSocialLink(ctx context.Context, linkID, personID uuid.UUID) error
 }
 
 type profileService struct {
@@ -63,35 +63,38 @@ func NewProfileService(userRepo user.UserRepository, profileRepo user.ProfileRep
 	}
 }
 
-func (s *profileService) GetFullProfile(ctx context.Context, userID uuid.UUID, viewerIsOwner bool) (*GetFullProfileResult, error) {
-	u, err := s.userRepo.GetByID(ctx, userID)
+func (s *profileService) GetFullProfile(ctx context.Context, personID uuid.UUID, viewerIsOwner bool) (*GetFullProfileResult, error) {
+	u, err := s.userRepo.GetByPersonID(ctx, personID)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบข้อมูลผู้ใช้งาน")
+	}
+
+	profile, err := s.profileRepo.GetProfileByPersonID(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
 
-	profile, err := s.profileRepo.GetProfileByUserID(ctx, userID)
+	skills, err := s.profileRepo.ListSkillsByPersonID(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
 
-	skills, err := s.profileRepo.ListSkillsByUserID(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	exps, err := s.profileRepo.ListExperiencesByUserID(ctx, userID)
+	exps, err := s.profileRepo.ListExperiencesByPersonID(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Non-owners see only published portfolio items
-	portfolio, err := s.profileRepo.ListPortfolioByUserID(ctx, userID, !viewerIsOwner)
+	portfolio, err := s.profileRepo.ListPortfolioByPersonID(ctx, personID, !viewerIsOwner)
 	if err != nil {
 		return nil, err
 	}
 
 	if profile != nil {
-		links, err := s.profileRepo.ListSocialLinks(ctx, userID)
+		links, err := s.profileRepo.ListSocialLinks(ctx, personID)
 		if err != nil {
 			return nil, err
 		}
@@ -110,37 +113,37 @@ func (s *profileService) GetFullProfile(ctx context.Context, userID uuid.UUID, v
 	}, nil
 }
 
-func (s *profileService) UpsertProfile(ctx context.Context, userID uuid.UUID, p *user.Profile) error {
-	p.UserID = userID
+func (s *profileService) UpsertProfile(ctx context.Context, personID uuid.UUID, p *user.Profile) error {
+	p.PersonID = personID
 	return s.profileRepo.UpsertProfile(ctx, p)
 }
 
-func (s *profileService) AddSkill(ctx context.Context, userID uuid.UUID, skill *user.Skill) error {
-	skill.UserID = userID
+func (s *profileService) AddSkill(ctx context.Context, personID uuid.UUID, skill *user.Skill) error {
+	skill.PersonID = personID
 	return s.profileRepo.CreateSkill(ctx, skill)
 }
 
-func (s *profileService) RemoveSkill(ctx context.Context, skillID, userID uuid.UUID) error {
-	return s.profileRepo.DeleteSkill(ctx, skillID, userID)
+func (s *profileService) RemoveSkill(ctx context.Context, skillID, personID uuid.UUID) error {
+	return s.profileRepo.DeleteSkill(ctx, skillID, personID)
 }
 
-func (s *profileService) AddExperience(ctx context.Context, userID uuid.UUID, e *user.Experience) error {
-	e.UserID = userID
+func (s *profileService) AddExperience(ctx context.Context, personID uuid.UUID, e *user.Experience) error {
+	e.PersonID = personID
 	return s.profileRepo.CreateExperience(ctx, e)
 }
 
-func (s *profileService) UpdateExperience(ctx context.Context, expID, userID uuid.UUID, e *user.Experience) error {
+func (s *profileService) UpdateExperience(ctx context.Context, expID, personID uuid.UUID, e *user.Experience) error {
 	e.ID = expID
-	e.UserID = userID
+	e.PersonID = personID
 	return s.profileRepo.UpdateExperience(ctx, e)
 }
 
-func (s *profileService) RemoveExperience(ctx context.Context, expID, userID uuid.UUID) error {
-	return s.profileRepo.DeleteExperience(ctx, expID, userID)
+func (s *profileService) RemoveExperience(ctx context.Context, expID, personID uuid.UUID) error {
+	return s.profileRepo.DeleteExperience(ctx, expID, personID)
 }
 
-func (s *profileService) AddPortfolioItem(ctx context.Context, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error {
-	item.UserID = userID
+func (s *profileService) AddPortfolioItem(ctx context.Context, personID uuid.UUID, item *user.PortfolioItem, tagNames []string) error {
+	item.PersonID = personID
 	if item.Slug == "" {
 		item.Slug = slugify(item.Title)
 	}
@@ -155,18 +158,18 @@ func (s *profileService) AddPortfolioItem(ctx context.Context, userID uuid.UUID,
 	return s.syncTags(ctx, item, tagNames)
 }
 
-func (s *profileService) UpdatePortfolioItem(ctx context.Context, itemID, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error {
+func (s *profileService) UpdatePortfolioItem(ctx context.Context, itemID, personID uuid.UUID, item *user.PortfolioItem, tagNames []string) error {
 	// Verify ownership
 	existing, err := s.profileRepo.GetPortfolioItemByID(ctx, itemID)
 	if err != nil {
 		return err
 	}
-	if existing.UserID != userID {
+	if existing.PersonID != personID {
 		return custom_errors.New(403, custom_errors.ErrForbidden, "ไม่มีสิทธิ์แก้ไข portfolio item นี้")
 	}
 
 	item.ID = itemID
-	item.UserID = userID
+	item.PersonID = personID
 	if item.Slug == "" {
 		item.Slug = slugify(item.Title)
 	}
@@ -181,8 +184,8 @@ func (s *profileService) UpdatePortfolioItem(ctx context.Context, itemID, userID
 	return nil
 }
 
-func (s *profileService) RemovePortfolioItem(ctx context.Context, itemID, userID uuid.UUID) error {
-	return s.profileRepo.DeletePortfolioItem(ctx, itemID, userID)
+func (s *profileService) RemovePortfolioItem(ctx context.Context, itemID, personID uuid.UUID) error {
+	return s.profileRepo.DeletePortfolioItem(ctx, itemID, personID)
 }
 
 // syncTags resolves tag names to IDs (creating new tags as needed) and
@@ -219,11 +222,11 @@ func slugify(s string) string {
 	return strings.ToLower(strings.NewReplacer(" ", "-", "_", "-").Replace(s))
 }
 
-func (s *profileService) ListSocialLinks(ctx context.Context, userID uuid.UUID) ([]*user.SocialLink, error) {
-	return s.profileRepo.ListSocialLinks(ctx, userID)
+func (s *profileService) ListSocialLinks(ctx context.Context, personID uuid.UUID) ([]*user.SocialLink, error) {
+	return s.profileRepo.ListSocialLinks(ctx, personID)
 }
 
-func (s *profileService) UpsertSocialLink(ctx context.Context, userID, platformID uuid.UUID, url string, sortOrder int) (*user.SocialLink, error) {
+func (s *profileService) UpsertSocialLink(ctx context.Context, personID, platformID uuid.UUID, url string, sortOrder int) (*user.SocialLink, error) {
 	p, err := s.socialPlatformRepo.GetByID(ctx, platformID)
 	if err != nil {
 		return nil, err
@@ -232,7 +235,7 @@ func (s *profileService) UpsertSocialLink(ctx context.Context, userID, platformI
 		return nil, custom_errors.New(400, custom_errors.ErrInvalidFormat, "platform ไม่รองรับหรือไม่ได้เปิดใช้งาน")
 	}
 	l := &user.SocialLink{
-		UserID:     userID,
+		PersonID:   personID,
 		PlatformID: platformID,
 		URL:        url,
 		SortOrder:  sortOrder,
@@ -243,6 +246,6 @@ func (s *profileService) UpsertSocialLink(ctx context.Context, userID, platformI
 	return l, nil
 }
 
-func (s *profileService) DeleteSocialLink(ctx context.Context, linkID, userID uuid.UUID) error {
-	return s.profileRepo.DeleteSocialLink(ctx, linkID, userID)
+func (s *profileService) DeleteSocialLink(ctx context.Context, linkID, personID uuid.UUID) error {
+	return s.profileRepo.DeleteSocialLink(ctx, linkID, personID)
 }

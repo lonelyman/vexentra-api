@@ -9,18 +9,18 @@ import (
 )
 
 // ─────────────────────────────────────────────────────────────────────
-//  Profile Model — 1:1 with users
+//  Profile Model — 1:1 with persons
 // ─────────────────────────────────────────────────────────────────────
 
 type profileModel struct {
 	ID          uuid.UUID         `gorm:"type:uuid;primaryKey"`
-	UserID      uuid.UUID         `gorm:"type:uuid;uniqueIndex;not null"`
+	PersonID    uuid.UUID         `gorm:"type:uuid;uniqueIndex;not null"`
 	DisplayName string            `gorm:"size:100;column:display_name"`
 	Headline    string            `gorm:"column:headline"`
 	Bio         string            `gorm:"column:bio;type:text"`
 	Location    string            `gorm:"column:location"`
 	AvatarURL   string            `gorm:"column:avatar_url"`
-	SocialLinks []socialLinkModel `gorm:"foreignKey:UserID;references:UserID"`
+	SocialLinks []socialLinkModel `gorm:"foreignKey:PersonID;references:PersonID"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -34,7 +34,7 @@ func (m *profileModel) ToEntity() *user.Profile {
 	}
 	return &user.Profile{
 		ID:          m.ID,
-		UserID:      m.UserID,
+		PersonID:    m.PersonID,
 		DisplayName: m.DisplayName,
 		Headline:    m.Headline,
 		Bio:         m.Bio,
@@ -47,15 +47,15 @@ func (m *profileModel) ToEntity() *user.Profile {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-//  Social Link Model (1:many with profiles via user_id)
+//  Social Link Model (1:many with profiles via person_id)
 // ─────────────────────────────────────────────────────────────────────
 
 // socialLinkModel maps to the social_links table.
-// PlatformID is a FK referencing social_platforms.id — one platform per user.
+// PlatformID is a FK referencing social_platforms.id — one platform per person.
 type socialLinkModel struct {
 	ID         uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID     uuid.UUID `gorm:"type:uuid;uniqueIndex:idx_social_links_user_platform;not null"`
-	PlatformID uuid.UUID `gorm:"type:uuid;uniqueIndex:idx_social_links_user_platform;not null"`
+	PersonID   uuid.UUID `gorm:"type:uuid;uniqueIndex:idx_social_links_person_platform;not null"`
+	PlatformID uuid.UUID `gorm:"type:uuid;uniqueIndex:idx_social_links_person_platform;not null"`
 	URL        string    `gorm:"size:512;column:url;not null"`
 	SortOrder  int       `gorm:"column:sort_order;default:0"`
 	CreatedAt  time.Time
@@ -67,7 +67,7 @@ func (socialLinkModel) TableName() string { return "social_links" }
 func (m *socialLinkModel) ToEntity() *user.SocialLink {
 	return &user.SocialLink{
 		ID:         m.ID,
-		UserID:     m.UserID,
+		PersonID:   m.PersonID,
 		PlatformID: m.PlatformID,
 		URL:        m.URL,
 		SortOrder:  m.SortOrder,
@@ -82,7 +82,7 @@ func (m *socialLinkModel) ToEntity() *user.SocialLink {
 
 type skillModel struct {
 	ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID      uuid.UUID `gorm:"type:uuid;index;not null"`
+	PersonID    uuid.UUID `gorm:"type:uuid;index;not null"`
 	Name        string    `gorm:"column:name;not null"`
 	Category    string    `gorm:"column:category;default:'other'"`
 	Proficiency int       `gorm:"column:proficiency;default:1"`
@@ -96,7 +96,7 @@ func (skillModel) TableName() string { return "skills" }
 func (m *skillModel) ToEntity() *user.Skill {
 	return &user.Skill{
 		ID:          m.ID,
-		UserID:      m.UserID,
+		PersonID:    m.PersonID,
 		Name:        m.Name,
 		Category:    m.Category,
 		Proficiency: m.Proficiency,
@@ -112,7 +112,7 @@ func (m *skillModel) ToEntity() *user.Skill {
 
 type experienceModel struct {
 	ID          uuid.UUID  `gorm:"type:uuid;primaryKey"`
-	UserID      uuid.UUID  `gorm:"type:uuid;index;not null"`
+	PersonID    uuid.UUID  `gorm:"type:uuid;index;not null"`
 	Company     string     `gorm:"column:company;not null"`
 	Position    string     `gorm:"column:position;not null"`
 	Location    string     `gorm:"size:100;column:location"`
@@ -130,7 +130,7 @@ func (experienceModel) TableName() string { return "experiences" }
 func (m *experienceModel) ToEntity() *user.Experience {
 	return &user.Experience{
 		ID:          m.ID,
-		UserID:      m.UserID,
+		PersonID:    m.PersonID,
 		Company:     m.Company,
 		Position:    m.Position,
 		Location:    m.Location,
@@ -170,7 +170,7 @@ func (m *portfolioTagModel) ToEntity() *user.PortfolioTag {
 
 type portfolioItemModel struct {
 	ID              uuid.UUID           `gorm:"type:uuid;primaryKey"`
-	UserID          uuid.UUID           `gorm:"type:uuid;index;not null"`
+	PersonID        uuid.UUID           `gorm:"type:uuid;index;not null"`
 	Title           string              `gorm:"column:title;not null"`
 	Slug            string              `gorm:"column:slug;not null"`
 	Summary         string              `gorm:"column:summary"`
@@ -204,7 +204,7 @@ func (m *portfolioItemModel) ToEntity() *user.PortfolioItem {
 	}
 	return &user.PortfolioItem{
 		ID:              m.ID,
-		UserID:          m.UserID,
+		PersonID:        m.PersonID,
 		Title:           m.Title,
 		Slug:            m.Slug,
 		Summary:         m.Summary,

@@ -24,7 +24,24 @@ func NewSocialPlatformHandler(svc platformsvc.SocialPlatformService, l logger.Lo
 }
 
 // List — GET /api/v1/social-platforms
+// ถ้าไม่ส่ง ?page= จะ return ทั้งหมด (dropdown mode)
+// ถ้าส่ง ?page=1&limit=10 จะ return แบบ pagination (table mode)
 func (h *SocialPlatformHandler) List(c fiber.Ctx) error {
+	// pagination mode: ตรวจว่ามี ?page= ส่งมาไหม
+	if _, hasPagination := c.Queries()["page"]; hasPagination {
+		q := presenter.ParseOffsetQuery(c)
+		platforms, total, err := h.svc.ListOffset(c.Context(), q.Limit, q.Offset)
+		if err != nil {
+			return presenter.RenderError(c, err)
+		}
+		resp := make([]SocialPlatformResponse, len(platforms))
+		for i, p := range platforms {
+			resp[i] = toResponse(p)
+		}
+		return presenter.RenderList(c, resp, presenter.NewOffsetPagination(int(total), q.Limit, q.Offset))
+	}
+
+	// dropdown mode: ดึงทั้งหมด ไม่มี pagination metadata
 	platforms, err := h.svc.List(c.Context())
 	if err != nil {
 		return presenter.RenderError(c, err)

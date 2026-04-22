@@ -62,6 +62,18 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*user.User,
 	return m.ToEntity(), nil
 }
 
+func (r *userRepository) GetByPersonID(ctx context.Context, personID uuid.UUID) (*user.User, error) {
+	var m userModel
+	if err := r.db.WithContext(ctx).Where("person_id = ?", personID).First(&m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		r.logger.Error("DB_GET_BY_PERSON_ID_ERROR", err)
+		return nil, err
+	}
+	return m.ToEntity(), nil
+}
+
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
 	var m userModel
 	if err := r.db.WithContext(ctx).Where("email = ?", email).First(&m).Error; err != nil {
@@ -106,6 +118,16 @@ func (r *userRepository) UpdateLastLogin(ctx context.Context, userID uuid.UUID, 
 		Update("last_login_at", t).Error; err != nil {
 		r.logger.Error("DB_UPDATE_LAST_LOGIN_ERROR", err)
 		return err
+	}
+	return nil
+}
+
+func (r *userRepository) UpdatePersonID(ctx context.Context, userID, personID uuid.UUID) error {
+	if err := r.db.WithContext(ctx).Model(&userModel{}).
+		Where("id = ?", userID).
+		Update("person_id", personID).Error; err != nil {
+		r.logger.Error("DB_UPDATE_PERSON_ID_ERROR", err)
+		return custom_errors.NewInternalError("ไม่สามารถอัปเดต person_id ได้")
 	}
 	return nil
 }
@@ -328,37 +350,3 @@ func (r *userRepository) ListAfterCursor(ctx context.Context, afterID uuid.UUID,
 	return users, nil
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Schema Management
-// ─────────────────────────────────────────────────────────────────────────────
-
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
-		&userModel{},
-		&userAuthModel{},
-		&profileModel{},
-		&socialLinkModel{},
-		&skillModel{},
-		&experienceModel{},
-		&portfolioTagModel{},
-		&portfolioItemModel{},
-	)
-}
-
-// ResetSchema drops and recreates all tables. FOR DEVELOPMENT USE ONLY.
-func ResetSchema(db *gorm.DB) error {
-	if err := db.Migrator().DropTable(
-		"portfolio_item_tags",
-		&portfolioItemModel{},
-		&portfolioTagModel{},
-		&experienceModel{},
-		&skillModel{},
-		&socialLinkModel{},
-		&profileModel{},
-		&userAuthModel{},
-		&userModel{},
-	); err != nil {
-		return err
-	}
-	return AutoMigrate(db)
-}

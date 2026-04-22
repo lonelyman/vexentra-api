@@ -7,6 +7,7 @@ import (
 
 type UserResponse struct {
 	ID              string     `json:"id"`
+	PersonID        string     `json:"person_id"`
 	Username        string     `json:"username"`
 	Email           string     `json:"email"`
 	Status          string     `json:"status"`
@@ -18,6 +19,7 @@ type UserResponse struct {
 func NewUserResponse(u *user.User) UserResponse {
 	return UserResponse{
 		ID:              u.ID.String(),
+		PersonID:        u.PersonID.String(),
 		Username:        u.Username,
 		Email:           u.Email,
 		Status:          u.Status,
@@ -29,8 +31,16 @@ func NewUserResponse(u *user.User) UserResponse {
 
 // RegisterResponse is the response body for POST /users/register.
 // Returns user profile and token pair so the client can immediately authenticate.
+// ClaimSuggestion มีเมื่อ email ตรงกับ InviteEmail ของ Person — frontend แสดง dialog ถามก่อน claim
 type RegisterResponse struct {
-	User         UserResponse `json:"user"`
-	AccessToken  string       `json:"access_token"`
-	RefreshToken string       `json:"refresh_token"`
+	User            UserResponse             `json:"user"`
+	AccessToken     string                   `json:"access_token"`
+	RefreshToken    string                   `json:"refresh_token"`
+	ClaimSuggestion *ClaimSuggestionResponse `json:"claim_suggestion,omitempty"`
+}
+
+// ClaimSuggestionResponse ส่งกลับเพื่อให้ frontend แสดง dialog ถามว่าต้องการ claim ไหม
+type ClaimSuggestionResponse struct {
+	PersonID string `json:"person_id"`
+	Name     string `json:"name"`
 }

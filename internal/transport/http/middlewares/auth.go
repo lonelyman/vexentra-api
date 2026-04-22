@@ -9,6 +9,23 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
+func RoleMiddleware(roles ...string) fiber.Handler {
+	allowed := make(map[string]struct{}, len(roles))
+	for _, r := range roles {
+		allowed[r] = struct{}{}
+	}
+	return func(c fiber.Ctx) error {
+		claims, ok := c.Locals("user_claims").(*auth.AccessClaims)
+		if !ok || claims == nil {
+			return custom_errors.New(401, custom_errors.ErrUnauthorized, "กรุณาเข้าสู่ระบบ")
+		}
+		if _, permitted := allowed[claims.Role]; !permitted {
+			return custom_errors.New(403, "FORBIDDEN", "คุณไม่มีสิทธิ์เข้าถึงส่วนนี้")
+		}
+		return c.Next()
+	}
+}
+
 func AuthMiddleware(authSvc auth.AuthService) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		authHeader := c.Get("Authorization")

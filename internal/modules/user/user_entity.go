@@ -13,6 +13,12 @@ const (
 	UserStatusPendingVerification = "pending_verification"
 )
 
+// Role ของผู้ใช้ในระบบ
+const (
+	UserRoleUser  = "user"
+	UserRoleAdmin = "admin"
+)
+
 // ประเภทผู้ให้บริการยืนยันตัวตน
 const (
 	AuthProviderLocal  = "local"
@@ -24,8 +30,10 @@ const (
 // การ serialize ทำที่ transport layer (UserResponse) เท่านั้น
 type User struct {
 	ID          uuid.UUID
+	PersonID    uuid.UUID // FK → persons.id (linked identity record)
 	Username    string
 	Email       string
+	Role        string     // user | admin
 	Status      string     // active | banned | pending_verification
 	LastLoginAt *time.Time // nil = ยังไม่เคย login
 	CreatedAt   time.Time

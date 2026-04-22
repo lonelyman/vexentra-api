@@ -12,6 +12,7 @@ import (
 
 type SocialPlatformService interface {
 	List(ctx context.Context) ([]*socialplatform.SocialPlatform, error)
+	ListOffset(ctx context.Context, limit, offset int) ([]*socialplatform.SocialPlatform, int64, error)
 	Create(ctx context.Context, p *socialplatform.SocialPlatform) (*socialplatform.SocialPlatform, error)
 	Update(ctx context.Context, id uuid.UUID, p *socialplatform.SocialPlatform) (*socialplatform.SocialPlatform, error)
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -28,6 +29,10 @@ func NewSocialPlatformService(repo socialplatform.SocialPlatformRepository, l lo
 
 func (s *socialPlatformService) List(ctx context.Context) ([]*socialplatform.SocialPlatform, error) {
 	return s.repo.List(ctx)
+}
+
+func (s *socialPlatformService) ListOffset(ctx context.Context, limit, offset int) ([]*socialplatform.SocialPlatform, int64, error) {
+	return s.repo.ListOffset(ctx, limit, offset)
 }
 
 func (s *socialPlatformService) Create(ctx context.Context, p *socialplatform.SocialPlatform) (*socialplatform.SocialPlatform, error) {

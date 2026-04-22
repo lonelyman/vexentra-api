@@ -41,15 +41,20 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	// Showcase — no login required; returns profile of the pre-configured showcase user
 	api.Get("/showcase", h.Profile.GetShowcase)
 
+	// Social Platforms — master data (public read)
+	api.Get("/social-platforms", h.SocialPlatform.List)
+
 	// Protected Routes
 	protected := api.Group("/", middlewares.AuthMiddleware(h.AuthSvc))
 	protected.Get("/me", h.User.GetProfile)
-	protected.Get("/users", h.User.ListUsers)
+	protected.Get("/users", middlewares.RoleMiddleware("admin"), h.User.ListUsers)
 	protected.Post("/auth/logout", h.Auth.Logout)
 	protected.Post("/auth/resend-verify", h.Auth.ResendVerifyEmail)
 	protected.Put("/me/password", h.User.ChangePassword)
+	protected.Post("/me/claim-person", h.User.ClaimPerson) // ยืนยัน claim Person ที่ระบบ suggest
 
 	// Profile & Portfolio — view any user's full profile (login required)
+	protected.Get("/me/profile", h.Profile.GetMyProfile)
 	protected.Get("/users/:id/profile", h.Profile.GetPublicProfile)
 
 	// Self-service profile management
@@ -70,9 +75,8 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Delete("/me/social-links/:linkID", h.Profile.DeleteSocialLink)
 	protected.Get("/me/social-links", h.Profile.GetSocialLinks)
 
-	// Social Platforms — master data (public read, protected write)
-	api.Get("/social-platforms", h.SocialPlatform.List)
-	protected.Post("/social-platforms", h.SocialPlatform.Create)
-	protected.Put("/social-platforms/:id", h.SocialPlatform.Update)
-	protected.Delete("/social-platforms/:id", h.SocialPlatform.Delete)
+	// Social Platforms — master data (admin write)
+	protected.Post("/social-platforms", middlewares.RoleMiddleware("admin"), h.SocialPlatform.Create)
+	protected.Put("/social-platforms/:id", middlewares.RoleMiddleware("admin"), h.SocialPlatform.Update)
+	protected.Delete("/social-platforms/:id", middlewares.RoleMiddleware("admin"), h.SocialPlatform.Delete)
 }

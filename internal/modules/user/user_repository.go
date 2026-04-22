@@ -11,12 +11,14 @@ type UserRepository interface {
 	// ─── User CRUD ───────────────────────────────────────────────────────────
 	Create(ctx context.Context, u *User) error
 	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
+	GetByPersonID(ctx context.Context, personID uuid.UUID) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByUsername(ctx context.Context, username string) (*User, error)
 
 	// ─── สถานะ & การ tracking ────────────────────────────────────────────────
 	UpdateStatus(ctx context.Context, userID uuid.UUID, status string) error
 	UpdateLastLogin(ctx context.Context, userID uuid.UUID, t time.Time) error
+	UpdatePersonID(ctx context.Context, userID, personID uuid.UUID) error // ใช้ตอน claim person
 
 	// ─── Email Verification ──────────────────────────────────────────────────
 	SetEmailVerificationToken(ctx context.Context, userID uuid.UUID, token string, expiresAt time.Time) error

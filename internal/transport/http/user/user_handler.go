@@ -43,17 +43,58 @@ func (h *UserHandler) Register(c fiber.Ctx) error {
 		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors))
 	}
 
-	result, err := h.svc.Register(c.Context(), req.Email, req.Password)
+	result, err := h.svc.Register(c.Context(), req.Email, req.Password, req.InviteToken)
 	if err != nil {
 		return err
 	}
 
-	h.logger.Success("User registered successfully", "userID", result.User.ID)
-	return presenter.RenderItem(c, RegisterResponse{
+	resp := RegisterResponse{
 		User:         NewUserResponse(result.User),
 		AccessToken:  result.TokenPair.AccessToken,
 		RefreshToken: result.TokenPair.RefreshToken,
-	}, fiber.StatusCreated)
+	}
+	if result.ClaimSuggestion != nil {
+		resp.ClaimSuggestion = &ClaimSuggestionResponse{
+			PersonID: result.ClaimSuggestion.PersonID,
+			Name:     result.ClaimSuggestion.Name,
+		}
+	}
+
+	h.logger.Success("User registered successfully", "userID", result.User.ID)
+	return presenter.RenderItem(c, resp, fiber.StatusCreated)
+}
+
+// ClaimPerson — POST /api/v1/me/claim-person
+// user ยืนยันว่าต้องการผูก Person ที่ระบบ suggest หลัง Register
+func (h *UserHandler) ClaimPerson(c fiber.Ctx) error {
+	claims := auth.GetClaims(c)
+	if claims == nil {
+		return custom_errors.New(401, custom_errors.ErrUnauthorized, "ไม่พบข้อมูล Token")
+	}
+	userID, err := uuid.Parse(claims.GetUserID())
+	if err != nil {
+		return custom_errors.New(401, custom_errors.ErrUnauthorized, "Token มี UserID ไม่ถูกต้อง")
+	}
+
+	req := new(ClaimPersonRequest)
+	if err := c.Bind().Body(req); err != nil {
+		return presenter.RenderError(c, custom_errors.New(400, "INVALID_JSON", "รูปแบบ JSON ไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, req); !vResult.IsValid {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors))
+	}
+
+	personID, err := uuid.Parse(req.PersonID)
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrValidation, "person_id ไม่ถูกต้อง")
+	}
+
+	if err := h.svc.ClaimPerson(c.Context(), userID, personID); err != nil {
+		return err
+	}
+
+	h.logger.Success("Person claimed", "userID", userID, "personID", personID)
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (h *UserHandler) GetProfile(c fiber.Ctx) error {

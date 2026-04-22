@@ -30,9 +30,10 @@ type TokenPair struct {
 
 // AccessClaims is embedded in short-lived Access Tokens only.
 // sub (Subject) = userID per RFC 7519.
-// Role is kept here since resource servers need it for authorization.
+// PersonID identifies the Person record linked to this user — used by profile operations.
 type AccessClaims struct {
 	Role                 string `json:"role"`
+	PersonID             string `json:"person_id"`  // UUID of the linked persons record
 	TokenType            string `json:"token_type"` // always "access"
 	jwt.RegisteredClaims        // carries: sub, iss, jti, iat, exp
 }
@@ -40,10 +41,14 @@ type AccessClaims struct {
 // GetUserID is a convenience method to read sub without extra type work.
 func (c *AccessClaims) GetUserID() string { return c.Subject }
 
+// GetPersonID returns the linked Person UUID from the token claims.
+func (c *AccessClaims) GetPersonID() string { return c.PersonID }
+
 // RefreshClaims is embedded in long-lived Refresh Tokens only.
 // Intentionally minimal — no Role (refresh endpoints don't authorize resources).
 // DeviceID enables per-device revocation for multi-device logout support.
 type RefreshClaims struct {
+	PersonID             string `json:"person_id"`           // UUID of the linked persons record
 	TokenType            string `json:"token_type"`          // always "refresh"
 	DeviceID             string `json:"device_id,omitempty"` // optional; set for multi-device tracking
 	jwt.RegisteredClaims        // carries: sub, iss, jti, iat, exp
@@ -51,6 +56,9 @@ type RefreshClaims struct {
 
 // GetUserID is a convenience method to read sub without extra type work.
 func (c *RefreshClaims) GetUserID() string { return c.Subject }
+
+// GetPersonID returns the linked Person UUID from the refresh claims.
+func (c *RefreshClaims) GetPersonID() string { return c.PersonID }
 
 // ─────────────────────────────────────────────
 //  Interface
@@ -60,8 +68,9 @@ type AuthService interface {
 	HashPassword(password string) (string, error)
 	ComparePassword(hashedPassword, plainPassword string) error
 	// GenerateTokenPair creates both tokens in one call.
+	// personID is the linked Person UUID — embedded in the access token for profile operations.
 	// deviceID is optional — pass it to enable per-device refresh token tracking.
-	GenerateTokenPair(userID, role string, deviceID ...string) (*TokenPair, error)
+	GenerateTokenPair(userID, personID, role string, deviceID ...string) (*TokenPair, error)
 	ValidateAccessToken(tokenString string) (*AccessClaims, error)
 	ValidateRefreshToken(tokenString string) (*RefreshClaims, error)
 }
@@ -89,12 +98,13 @@ func (s *authService) ComparePassword(hashedPassword, plainPassword string) erro
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(plainPassword))
 }
 
-func (s *authService) GenerateTokenPair(userID, role string, deviceID ...string) (*TokenPair, error) {
+func (s *authService) GenerateTokenPair(userID, personID, role string, deviceID ...string) (*TokenPair, error) {
 	now := time.Now()
 
 	// --- Access Token ---
 	accessClaims := &AccessClaims{
 		Role:      role,
+		PersonID:  personID,
 		TokenType: "access",
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.New().String(), // jti — unique per token, enables future blacklisting
@@ -116,6 +126,7 @@ func (s *authService) GenerateTokenPair(userID, role string, deviceID ...string)
 		dID = deviceID[0]
 	}
 	refreshClaims := &RefreshClaims{
+		PersonID:  personID,
 		TokenType: "refresh",
 		DeviceID:  dID,
 		RegisteredClaims: jwt.RegisteredClaims{

@@ -226,3 +226,31 @@ func (h *UserHandler) AdminUpdateUser(c fiber.Ctx) error {
 	h.logger.Info("Admin updated user", "targetID", targetID)
 	return presenter.RenderItem(c, NewUserResponse(u))
 }
+
+func (h *UserHandler) AdminGetUser(c fiber.Ctx) error {
+	targetID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return presenter.RenderError(c, custom_errors.New(400, "INVALID_ID", "รูปแบบ User ID ไม่ถูกต้อง"))
+	}
+	u, svcErr := h.svc.GetUserByID(c.Context(), targetID)
+	if svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	return presenter.RenderItem(c, NewUserResponse(u))
+}
+
+func (h *UserHandler) AdminCreateUser(c fiber.Ctx) error {
+	req := new(AdminCreateUserRequest)
+	if bindErr := c.Bind().Body(req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, "INVALID_JSON", "รูปแบบ JSON ไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, req); !vResult.IsValid {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors))
+	}
+	u, svcErr := h.svc.AdminCreateUser(c.Context(), req.Email, req.Password, req.DisplayName, req.Role)
+	if svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	h.logger.Info("Admin created user", "email", req.Email)
+	return presenter.RenderItem(c, NewUserResponse(u))
+}

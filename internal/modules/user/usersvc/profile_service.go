@@ -27,6 +27,7 @@ type ProfileService interface {
 	GetFullProfile(ctx context.Context, personID uuid.UUID, viewerIsOwner bool) (*GetFullProfileResult, error)
 
 	UpsertProfile(ctx context.Context, personID uuid.UUID, p *user.Profile) error
+	AdminUpsertProfile(ctx context.Context, userID uuid.UUID, p *user.Profile) error
 
 	AddSkill(ctx context.Context, personID uuid.UUID, s *user.Skill) error
 	RemoveSkill(ctx context.Context, skillID, personID uuid.UUID) error
@@ -248,4 +249,13 @@ func (s *profileService) UpsertSocialLink(ctx context.Context, personID, platfor
 
 func (s *profileService) DeleteSocialLink(ctx context.Context, linkID, personID uuid.UUID) error {
 	return s.profileRepo.DeleteSocialLink(ctx, linkID, personID)
+}
+
+func (s *profileService) AdminUpsertProfile(ctx context.Context, userID uuid.UUID, p *user.Profile) error {
+	u, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || u == nil {
+		return custom_errors.NewNotFoundError("USER_NOT_FOUND", "ไม่พบผู้ใช้งาน")
+	}
+	p.PersonID = u.PersonID
+	return s.profileRepo.UpsertProfile(ctx, p)
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"vexentra-api/internal/adapters/database/postgres/pgtx"
 	"vexentra-api/internal/modules/person"
 	"vexentra-api/internal/modules/user"
 	"vexentra-api/pkg/auth"
@@ -15,6 +16,7 @@ import (
 	"vexentra-api/pkg/wela"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // RegisterResult bundles the created user and issued token pair.
@@ -66,21 +68,25 @@ type UserService interface {
 	ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error
 
 	// Admin — user management
+	GetUserByID(ctx context.Context, userID uuid.UUID) (*user.User, error)
 	AdminUpdateUser(ctx context.Context, targetID uuid.UUID, role, status string) (*user.User, error)
+	AdminCreateUser(ctx context.Context, email, password, displayName, role string) (*user.User, error)
 }
 
 type userService struct {
+	db         *gorm.DB
 	repo       user.UserRepository
 	personRepo person.PersonRepository
 	authSvc    auth.AuthService
 	logger     logger.Logger
 }
 
-func NewUserService(repo user.UserRepository, personRepo person.PersonRepository, authSvc auth.AuthService, l logger.Logger) UserService {
+func NewUserService(db *gorm.DB, repo user.UserRepository, personRepo person.PersonRepository, authSvc auth.AuthService, l logger.Logger) UserService {
 	if l == nil {
 		l = logger.Get()
 	}
 	return &userService{
+		db:         db,
 		repo:       repo,
 		personRepo: personRepo,
 		authSvc:    authSvc,
@@ -285,11 +291,17 @@ func (s *userService) ClaimPerson(ctx context.Context, userID, personID uuid.UUI
 	// เก็บ old Person ID ก่อน swap (Person ที่สร้างตอน Register)
 	oldPersonID := u.PersonID
 
-	// Swap: User.PersonID → targetPerson, targetPerson.LinkedUserID → User
-	if err := s.repo.UpdatePersonID(ctx, userID, personID); err != nil {
-		return err
-	}
-	if err := s.personRepo.LinkUser(ctx, personID, userID); err != nil {
+	// Swap must be atomic: either both user.person_id and person.linked_user_id
+	// are updated, or neither is.
+	if err := pgtx.Run(ctx, s.db, func(txCtx context.Context) error {
+		if err := s.repo.UpdatePersonID(txCtx, userID, personID); err != nil {
+			return err
+		}
+		if err := s.personRepo.LinkUser(txCtx, personID, userID); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
 
@@ -535,6 +547,67 @@ func (s *userService) AdminUpdateUser(ctx context.Context, targetID uuid.UUID, r
 		return nil, custom_errors.NewNotFoundError("USER_NOT_FOUND", "ไม่พบผู้ใช้งาน")
 	}
 	return u, nil
+}
+
+func (s *userService) GetUserByID(ctx context.Context, userID uuid.UUID) (*user.User, error) {
+	u, err := s.repo.GetByID(ctx, userID)
+	if err != nil || u == nil {
+		return nil, custom_errors.NewNotFoundError("USER_NOT_FOUND", "ไม่พบผู้ใช้งาน")
+	}
+	return u, nil
+}
+
+func (s *userService) AdminCreateUser(ctx context.Context, email, password, displayName, role string) (*user.User, error) {
+	if existing, _ := s.repo.GetByEmail(ctx, email); existing != nil {
+		return nil, custom_errors.New(409, custom_errors.ErrAlreadyExists, "อีเมลนี้ถูกใช้งานแล้ว")
+	}
+
+	username := strings.SplitN(email, "@", 2)[0]
+	if existingByUsername, _ := s.repo.GetByUsername(ctx, username); existingByUsername != nil {
+		username = username + "_" + hex.EncodeToString([]byte(email))[:6]
+	}
+
+	if role == "" {
+		role = user.UserRoleMember
+	}
+
+	hashedPassword, err := s.authSvc.HashPassword(password)
+	if err != nil {
+		return nil, custom_errors.NewInternalError("ไม่สามารถประมวลผล password ได้")
+	}
+
+	newPerson := &person.Person{Name: displayName}
+	if err := s.personRepo.Create(ctx, newPerson); err != nil {
+		return nil, custom_errors.NewInternalError("ไม่สามารถสร้างข้อมูล person ได้")
+	}
+
+	newUser := &user.User{
+		PersonID:        newPerson.ID,
+		Username:        username,
+		Email:           email,
+		Role:            role,
+		Status:          user.UserStatusActive,
+		IsEmailVerified: true,
+	}
+	if err := s.repo.Create(ctx, newUser); err != nil {
+		return nil, custom_errors.NewInternalError("ไม่สามารถสร้าง user ได้")
+	}
+
+	if err := s.personRepo.LinkUser(ctx, newPerson.ID, newUser.ID); err != nil {
+		s.logger.Warn("Failed to link person to user", "personID", newPerson.ID, "userID", newUser.ID)
+	}
+
+	newAuth := &user.UserAuth{
+		UserID:     newUser.ID,
+		Provider:   user.AuthProviderLocal,
+		ProviderID: email,
+		Secret:     hashedPassword,
+	}
+	if err := s.repo.CreateAuth(ctx, newAuth); err != nil {
+		return nil, custom_errors.NewInternalError("ไม่สามารถสร้าง auth ได้")
+	}
+
+	return newUser, nil
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

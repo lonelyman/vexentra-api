@@ -394,3 +394,29 @@ func ownerPersonID(c fiber.Ctx) (uuid.UUID, *custom_errors.AppError) {
 	}
 	return id, nil
 }
+
+func (h *ProfileHandler) AdminUpsertProfile(c fiber.Ctx) error {
+	targetID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return presenter.RenderError(c, custom_errors.New(400, "INVALID_ID", "รูปแบบ User ID ไม่ถูกต้อง"))
+	}
+	req := new(UpsertProfileRequest)
+	if bindErr := c.Bind().Body(req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, "INVALID_JSON", "รูปแบบ JSON ไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, req); !vResult.IsValid {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors))
+	}
+	p := &user.Profile{
+		DisplayName: req.DisplayName,
+		Headline:    req.Headline,
+		Bio:         req.Bio,
+		Location:    req.Location,
+		AvatarURL:   req.AvatarURL,
+	}
+	if svcErr := h.svc.AdminUpsertProfile(c.Context(), targetID, p); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	h.logger.Info("Admin updated profile", "targetUserID", targetID)
+	return presenter.RenderItem(c, fiber.Map{"message": "อัปเดตโปรไฟล์สำเร็จ"})
+}

@@ -19,6 +19,14 @@ type ChangePasswordRequest struct {
 	NewPassword     string `json:"new_password"     validate:"required,strong_password" vmsg:"required:กรุณาระบุรหัสผ่านใหม่"`
 }
 
+// AdminCreateUserRequest is the request body for POST /api/v1/users (admin only).
+type AdminCreateUserRequest struct {
+	Email       string `json:"email"        validate:"required,email"                             vmsg:"required:กรุณาระบุอีเมล,email:รูปแบบอีเมลไม่ถูกต้อง"`
+	Password    string `json:"password"     validate:"required,min=8"                             vmsg:"required:กรุณาระบุรหัสผ่าน,min:รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"`
+	DisplayName string `json:"display_name" validate:"required"                                   vmsg:"required:กรุณาระบุชื่อ"`
+	Role        string `json:"role"         validate:"omitempty,oneof=member manager admin"       vmsg:"oneof:role ต้องเป็น member | manager | admin"`
+}
+
 // AdminUpdateUserRequest is the request body for PATCH /api/v1/users/:id (admin only).
 // Both fields are optional — send only the ones you want to change.
 type AdminUpdateUserRequest struct {

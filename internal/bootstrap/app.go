@@ -8,15 +8,21 @@ import (
 	"syscall"
 	"time"
 	"vexentra-api/internal/adapters/database/postgres/pgperson"
+	"vexentra-api/internal/adapters/database/postgres/pgproject"
 	"vexentra-api/internal/adapters/database/postgres/pgsocialplatform"
+	"vexentra-api/internal/adapters/database/postgres/pgtxcategory"
 	"vexentra-api/internal/adapters/database/postgres/pguser"
 	"vexentra-api/internal/config"
+	"vexentra-api/internal/modules/project/projectsvc"
 	"vexentra-api/internal/modules/socialplatform/platformsvc"
+	"vexentra-api/internal/modules/txcategory/txcategorysvc"
 	"vexentra-api/internal/modules/user/usersvc"
 	"vexentra-api/internal/transport/http"
 	authhdl "vexentra-api/internal/transport/http/auth"
 	healthhdl "vexentra-api/internal/transport/http/health"
+	projecthdl "vexentra-api/internal/transport/http/project"
 	socialplatformhdl "vexentra-api/internal/transport/http/socialplatform"
+	txcategoryhdl "vexentra-api/internal/transport/http/txcategory"
 	userhdl "vexentra-api/internal/transport/http/user"
 	"vexentra-api/pkg/auth"
 	"vexentra-api/pkg/logger"
@@ -60,14 +66,28 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	personRepo := pgperson.NewPersonRepository(db, l)
 	profileRepo := pguser.NewProfileRepository(db, l)
 	socialPlatformRepo := pgsocialplatform.NewSocialPlatformRepository(db, l)
+	projectRepo := pgproject.NewProjectRepository(db, l)
+	memberRepo := pgproject.NewProjectMemberRepository(db, l)
+	txRepo := pgproject.NewProjectTransactionRepository(db, l)
+	categoryRepo := pgtxcategory.NewTransactionCategoryRepository(db, l)
+
 	userSvc := usersvc.NewUserService(userRepo, personRepo, authSvc, l)
 	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, socialPlatformRepo, l)
 	socialPlatformSvc := platformsvc.NewSocialPlatformService(socialPlatformRepo, l)
+	projectSvc := projectsvc.NewProjectService(db, projectRepo, memberRepo, cfg.App.ProjectCodePrefix, l)
+	memberSvc := projectsvc.NewMemberService(projectSvc, memberRepo, l)
+	txSvc := projectsvc.NewTransactionService(projectSvc, memberRepo, txRepo, categoryRepo, l)
+	categorySvc := txcategorysvc.NewTransactionCategoryService(categoryRepo, l)
+
 	userHdl := userhdl.NewUserHandler(userSvc, l)
 	profileHdl := userhdl.NewProfileHandler(profileSvc, cfg.App.ShowcasePersonID, l)
 	socialPlatformHdl := socialplatformhdl.NewSocialPlatformHandler(socialPlatformSvc, l)
 	authHdl := authhdl.NewAuthHandler(userSvc, authSvc, cfg.App.Env, l)
 	healthHdl := healthhdl.NewHealthHandler(db, rdb)
+	projectHdl := projecthdl.NewProjectHandler(projectSvc, l)
+	memberHdl := projecthdl.NewMemberHandler(memberSvc, l)
+	txHdl := projecthdl.NewTransactionHandler(txSvc, l)
+	txCategoryHdl := txcategoryhdl.NewCategoryHandler(categorySvc, l)
 
 	http.SetupRouter(server, http.Handlers{
 		User:           userHdl,
@@ -75,8 +95,11 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 		SocialPlatform: socialPlatformHdl,
 		Auth:           authHdl,
 		Health:         healthHdl,
+		Project:        projectHdl,
+		Member:         memberHdl,
+		Transaction:    txHdl,
+		TxCategory:     txCategoryHdl,
 		AuthSvc:        authSvc,
-		// Order: orderHdl,
 	})
 
 	return &App{

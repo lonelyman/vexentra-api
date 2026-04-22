@@ -3,6 +3,7 @@ package http
 
 import (
 	authhdl "vexentra-api/internal/transport/http/auth"
+	dashboardhdl "vexentra-api/internal/transport/http/dashboard"
 	healthhdl "vexentra-api/internal/transport/http/health"
 	"vexentra-api/internal/transport/http/middlewares"
 	projecthdl "vexentra-api/internal/transport/http/project"
@@ -24,6 +25,7 @@ type Handlers struct {
 	Member         *projecthdl.MemberHandler
 	Transaction    *projecthdl.TransactionHandler
 	TxCategory     *txcategoryhdl.CategoryHandler
+	Dashboard      *dashboardhdl.DashboardHandler
 	AuthSvc        auth.AuthService
 }
 
@@ -107,9 +109,13 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Post("/projects/:id/transactions", h.Transaction.Create)
 	protected.Get("/projects/:id/transactions", h.Transaction.List)
 	protected.Get("/projects/:id/transactions/summary", h.Transaction.Summary)
+	protected.Get("/projects/:id/transactions/export", h.Transaction.ExportCSV)
 	protected.Get("/projects/:id/transactions/:txID", h.Transaction.Get)
 	protected.Put("/projects/:id/transactions/:txID", h.Transaction.Update)
 	protected.Delete("/projects/:id/transactions/:txID", h.Transaction.Delete)
+
+	// Dashboard — aggregate stats scoped to caller's accessible projects
+	protected.Get("/dashboard/stats", h.Dashboard.GetStats)
 
 	// Transaction Categories — read open to any authenticated user, writes admin-only
 	protected.Get("/tx-categories", h.TxCategory.List)

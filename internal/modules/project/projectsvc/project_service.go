@@ -11,6 +11,7 @@ import (
 	"vexentra-api/internal/modules/user"
 	"vexentra-api/pkg/custom_errors"
 	"vexentra-api/pkg/logger"
+	"vexentra-api/pkg/wela"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -64,11 +65,11 @@ type ProjectService interface {
 }
 
 type projectService struct {
-	db             *gorm.DB
-	projectRepo    project.ProjectRepository
-	memberRepo     project.ProjectMemberRepository
-	codePrefix     string
-	logger         logger.Logger
+	db          *gorm.DB
+	projectRepo project.ProjectRepository
+	memberRepo  project.ProjectMemberRepository
+	codePrefix  string
+	logger      logger.Logger
 }
 
 func NewProjectService(
@@ -109,7 +110,7 @@ func (s *projectService) Create(ctx context.Context, caller user.Caller, in Crea
 		if err != nil {
 			return err
 		}
-		code := fmt.Sprintf("%s-%d-%04d", s.codePrefix, time.Now().Year(), seq)
+		code := fmt.Sprintf("%s-%d-%04d", s.codePrefix, wela.NowUTC().Year(), seq)
 
 		p := &project.Project{
 			ProjectCode:      code,
@@ -175,7 +176,7 @@ func (s *projectService) Update(ctx context.Context, caller user.Caller, id uuid
 
 	// Stamp activated_at the first time the project enters 'active'.
 	if in.Status == project.ProjectStatusActive && p.ActivatedAt == nil {
-		now := time.Now().UTC()
+		now := wela.NowUTC()
 		p.ActivatedAt = &now
 	}
 
@@ -211,7 +212,7 @@ func (s *projectService) Close(ctx context.Context, caller user.Caller, id uuid.
 		return nil, custom_errors.New(400, custom_errors.ErrValidation, "โปรเจกต์ต้องมีลูกค้าก่อนปิดงาน")
 	}
 
-	now := time.Now().UTC()
+	now := wela.NowUTC()
 	reason := in.Reason
 	p.Status = project.ProjectStatusClosed
 	p.ClosureReason = &reason

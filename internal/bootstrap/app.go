@@ -10,12 +10,14 @@ import (
 	"vexentra-api/internal/adapters/database/postgres/pgperson"
 	"vexentra-api/internal/adapters/database/postgres/pgproject"
 	"vexentra-api/internal/adapters/database/postgres/pgsocialplatform"
+	"vexentra-api/internal/adapters/database/postgres/pgtask"
 	"vexentra-api/internal/adapters/database/postgres/pgtxcategory"
 	"vexentra-api/internal/adapters/database/postgres/pguser"
 	"vexentra-api/internal/config"
 	"vexentra-api/internal/modules/dashboard/dashboardsvc"
 	"vexentra-api/internal/modules/project/projectsvc"
 	"vexentra-api/internal/modules/socialplatform/platformsvc"
+	"vexentra-api/internal/modules/task/tasksvc"
 	"vexentra-api/internal/modules/txcategory/txcategorysvc"
 	"vexentra-api/internal/modules/user/usersvc"
 	"vexentra-api/internal/transport/http"
@@ -24,6 +26,7 @@ import (
 	healthhdl "vexentra-api/internal/transport/http/health"
 	projecthdl "vexentra-api/internal/transport/http/project"
 	socialplatformhdl "vexentra-api/internal/transport/http/socialplatform"
+	taskhdl "vexentra-api/internal/transport/http/task"
 	txcategoryhdl "vexentra-api/internal/transport/http/txcategory"
 	userhdl "vexentra-api/internal/transport/http/user"
 	"vexentra-api/pkg/auth"
@@ -81,6 +84,8 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	txSvc := projectsvc.NewTransactionService(projectSvc, memberRepo, txRepo, categoryRepo, l)
 	categorySvc := txcategorysvc.NewTransactionCategoryService(categoryRepo, l)
 
+	taskRepo := pgtask.NewTaskRepository(db, l)
+	taskSvc := tasksvc.New(projectSvc, taskRepo, l)
 	dashboardSvc := dashboardsvc.New(db, l)
 
 	userHdl := userhdl.NewUserHandler(userSvc, l)
@@ -93,6 +98,7 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	txHdl := projecthdl.NewTransactionHandler(txSvc, l)
 	txCategoryHdl := txcategoryhdl.NewCategoryHandler(categorySvc, l)
 	dashboardHdl := dashboardhdl.NewDashboardHandler(dashboardSvc, l)
+	taskHdl := taskhdl.NewTaskHandler(taskSvc, l)
 
 	http.SetupRouter(server, http.Handlers{
 		User:           userHdl,
@@ -105,6 +111,7 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 		Transaction:    txHdl,
 		TxCategory:     txCategoryHdl,
 		Dashboard:      dashboardHdl,
+		Task:           taskHdl,
 		AuthSvc:        authSvc,
 	})
 

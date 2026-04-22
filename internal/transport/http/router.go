@@ -8,6 +8,7 @@ import (
 	"vexentra-api/internal/transport/http/middlewares"
 	projecthdl "vexentra-api/internal/transport/http/project"
 	socialplatformhdl "vexentra-api/internal/transport/http/socialplatform"
+	taskhdl "vexentra-api/internal/transport/http/task"
 	txcategoryhdl "vexentra-api/internal/transport/http/txcategory"
 	userhdl "vexentra-api/internal/transport/http/user"
 	"vexentra-api/pkg/auth"
@@ -26,6 +27,7 @@ type Handlers struct {
 	Transaction    *projecthdl.TransactionHandler
 	TxCategory     *txcategoryhdl.CategoryHandler
 	Dashboard      *dashboardhdl.DashboardHandler
+	Task           *taskhdl.TaskHandler
 	AuthSvc        auth.AuthService
 }
 
@@ -116,6 +118,13 @@ func SetupRouter(app *fiber.App, h Handlers) {
 
 	// Dashboard — aggregate stats scoped to caller's accessible projects
 	protected.Get("/dashboard/stats", h.Dashboard.GetStats)
+
+	// Tasks — per-project task list; any active member may read/write
+	protected.Post("/projects/:id/tasks", h.Task.Create)
+	protected.Get("/projects/:id/tasks", h.Task.List)
+	protected.Get("/projects/:id/tasks/:taskID", h.Task.Get)
+	protected.Put("/projects/:id/tasks/:taskID", h.Task.Update)
+	protected.Delete("/projects/:id/tasks/:taskID", h.Task.Delete)
 
 	// Transaction Categories — read open to any authenticated user, writes admin-only
 	protected.Get("/tx-categories", h.TxCategory.List)

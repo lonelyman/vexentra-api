@@ -14,6 +14,7 @@ import (
 	"vexentra-api/pkg/custom_errors"
 	"vexentra-api/pkg/logger"
 	"vexentra-api/pkg/validation"
+	"vexentra-api/pkg/wela"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
@@ -113,14 +114,14 @@ func (h *TransactionHandler) List(c fiber.Ctx) error {
 
 	var occurredGTE, occurredLT *time.Time
 	if raw := strings.TrimSpace(c.Query("from", "")); raw != "" {
-		t, terr := time.Parse(time.RFC3339, raw)
+		t, terr := wela.ParseRFC3339Any(raw)
 		if terr != nil {
 			return custom_errors.New(400, custom_errors.ErrValidation, "from ต้องอยู่ในรูปแบบ RFC3339")
 		}
 		occurredGTE = &t
 	}
 	if raw := strings.TrimSpace(c.Query("to", "")); raw != "" {
-		t, terr := time.Parse(time.RFC3339, raw)
+		t, terr := wela.ParseRFC3339Any(raw)
 		if terr != nil {
 			return custom_errors.New(400, custom_errors.ErrValidation, "to ต้องอยู่ในรูปแบบ RFC3339")
 		}
@@ -241,7 +242,7 @@ func (h *TransactionHandler) ExportCSV(c fiber.Ctx) error {
 				note = `"` + note + `"`
 			}
 			fmt.Fprintf(w, "%s,%s,%s,%s,%s,%s\n",
-				row.OccurredAt.Format("2006-01-02"),
+				wela.FormatISODate(row.OccurredAt),
 				csvEscape(row.CategoryName),
 				row.CategoryType,
 				row.Amount.StringFixed(2),

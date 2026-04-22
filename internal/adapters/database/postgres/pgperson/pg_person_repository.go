@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"time"
+	"vexentra-api/internal/adapters/database/postgres/pgtx"
 	"vexentra-api/internal/modules/person"
 	"vexentra-api/pkg/custom_errors"
 	"vexentra-api/pkg/logger"
@@ -86,7 +87,7 @@ func (r *personRepository) Update(ctx context.Context, p *person.Person) error {
 }
 
 func (r *personRepository) LinkUser(ctx context.Context, personID, userID uuid.UUID) error {
-	if err := r.db.WithContext(ctx).
+	if err := pgtx.DB(ctx, r.db).WithContext(ctx).
 		Model(&personModel{}).
 		Where("id = ?", personID).
 		Update("linked_user_id", userID).Error; err != nil {

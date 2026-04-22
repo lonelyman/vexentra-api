@@ -88,6 +88,23 @@ func (h *ProjectHandler) Get(c fiber.Ctx) error {
 	return presenter.RenderItem(c, NewProjectResponse(p))
 }
 
+// GetByCode — GET /api/v1/projects/by-code/:code
+func (h *ProjectHandler) GetByCode(c fiber.Ctx) error {
+	caller, err := auth.GetCaller(c)
+	if err != nil {
+		return err
+	}
+	code := strings.TrimSpace(c.Params("code"))
+	if code == "" {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "กรุณาระบุรหัสโปรเจกต์")
+	}
+	p, svcErr := h.svc.GetByCode(c.Context(), caller, code)
+	if svcErr != nil {
+		return svcErr
+	}
+	return presenter.RenderItem(c, NewProjectResponse(p))
+}
+
 // List — GET /api/v1/projects?status=&search=&page=&limit=
 func (h *ProjectHandler) List(c fiber.Ctx) error {
 	caller, err := auth.GetCaller(c)
@@ -126,6 +143,88 @@ func (h *ProjectHandler) List(c fiber.Ctx) error {
 	}
 	pg := presenter.NewOffsetPagination(int(total), q.Limit, q.Offset)
 	return presenter.RenderList(c, resp, pg)
+}
+
+// ListStatuses — GET /api/v1/project-statuses?active_only=true
+func (h *ProjectHandler) ListStatuses(c fiber.Ctx) error {
+	caller, err := auth.GetCaller(c)
+	if err != nil {
+		return err
+	}
+
+	activeOnly := !strings.EqualFold(strings.TrimSpace(c.Query("active_only", "")), "false")
+	items, svcErr := h.svc.ListStatuses(c.Context(), caller, activeOnly)
+	if svcErr != nil {
+		return svcErr
+	}
+
+	resp := make([]ProjectStatusResponse, len(items))
+	for i := range items {
+		resp[i] = NewProjectStatusResponse(items[i])
+	}
+	return presenter.RenderList(c, resp)
+}
+
+// GetFinancialPlan — GET /api/v1/projects/:id/financial-plan
+func (h *ProjectHandler) GetFinancialPlan(c fiber.Ctx) error {
+	caller, err := auth.GetCaller(c)
+	if err != nil {
+		return err
+	}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "project id ไม่ถูกต้อง")
+	}
+	plan, svcErr := h.svc.GetFinancialPlan(c.Context(), caller, id)
+	if svcErr != nil {
+		return svcErr
+	}
+	return presenter.RenderItem(c, NewProjectFinancialPlanResponse(plan))
+}
+
+// UpsertFinancialPlan — PUT /api/v1/projects/:id/financial-plan
+func (h *ProjectHandler) UpsertFinancialPlan(c fiber.Ctx) error {
+	caller, err := auth.GetCaller(c)
+	if err != nil {
+		return err
+	}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "project id ไม่ถูกต้อง")
+	}
+
+	req := new(UpsertProjectFinancialPlanRequest)
+	if err := c.Bind().Body(req); err != nil {
+		return custom_errors.New(400, "INVALID_JSON", "รูปแบบ JSON ไม่ถูกต้อง")
+	}
+	if v := validation.Validate(h.validate, req); !v.IsValid {
+		return custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", v.Errors)
+	}
+
+	items := make([]projectsvc.ProjectPaymentInstallmentInput, 0, len(req.Installments))
+	for i := range req.Installments {
+		item := req.Installments[i]
+		items = append(items, projectsvc.ProjectPaymentInstallmentInput{
+			SortOrder:           item.SortOrder,
+			Title:               item.Title,
+			Amount:              item.Amount,
+			PlannedDeliveryDate: item.PlannedDeliveryDate,
+			PlannedReceiveDate:  item.PlannedReceiveDate,
+			Note:                item.Note,
+		})
+	}
+
+	plan, svcErr := h.svc.UpsertFinancialPlan(c.Context(), caller, id, projectsvc.UpsertFinancialPlanInput{
+		ContractAmount:      req.ContractAmount,
+		RetentionAmount:     req.RetentionAmount,
+		PlannedDeliveryDate: req.PlannedDeliveryDate,
+		PaymentNote:         req.PaymentNote,
+		Installments:        items,
+	})
+	if svcErr != nil {
+		return svcErr
+	}
+	return presenter.RenderItem(c, NewProjectFinancialPlanResponse(plan))
 }
 
 // Update — PUT /api/v1/projects/:id
@@ -190,7 +289,8 @@ func (h *ProjectHandler) Close(c fiber.Ctx) error {
 	}
 
 	p, svcErr := h.svc.Close(c.Context(), caller, id, projectsvc.CloseProjectInput{
-		Reason: project.ProjectClosureReason(req.Reason),
+		Reason:   project.ProjectClosureReason(req.Reason),
+		ClosedAt: req.ClosedAt,
 	})
 	if svcErr != nil {
 		return svcErr

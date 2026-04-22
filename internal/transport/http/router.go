@@ -3,10 +3,12 @@ package http
 
 import (
 	authhdl "vexentra-api/internal/transport/http/auth"
+	dashboardhdl "vexentra-api/internal/transport/http/dashboard"
 	healthhdl "vexentra-api/internal/transport/http/health"
 	"vexentra-api/internal/transport/http/middlewares"
 	projecthdl "vexentra-api/internal/transport/http/project"
 	socialplatformhdl "vexentra-api/internal/transport/http/socialplatform"
+	taskhdl "vexentra-api/internal/transport/http/task"
 	txcategoryhdl "vexentra-api/internal/transport/http/txcategory"
 	userhdl "vexentra-api/internal/transport/http/user"
 	"vexentra-api/pkg/auth"
@@ -24,6 +26,8 @@ type Handlers struct {
 	Member         *projecthdl.MemberHandler
 	Transaction    *projecthdl.TransactionHandler
 	TxCategory     *txcategoryhdl.CategoryHandler
+	Dashboard      *dashboardhdl.DashboardHandler
+	Task           *taskhdl.TaskHandler
 	AuthSvc        auth.AuthService
 }
 
@@ -53,7 +57,17 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	// Protected Routes
 	protected := api.Group("/", middlewares.AuthMiddleware(h.AuthSvc))
 	protected.Get("/me", h.User.GetProfile)
+	protected.Post("/users", middlewares.RoleMiddleware("admin"), h.User.AdminCreateUser)
 	protected.Get("/users", middlewares.RoleMiddleware("admin"), h.User.ListUsers)
+	protected.Get("/users/:id", middlewares.RoleMiddleware("admin"), h.User.AdminGetUser)
+	protected.Patch("/users/:id", middlewares.RoleMiddleware("admin"), h.User.AdminUpdateUser)
+	protected.Put("/users/:id/password", middlewares.RoleMiddleware("admin"), h.User.AdminSetPassword)
+	protected.Put("/users/:id/profile", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpsertProfile)
+	protected.Post("/users/:id/skills", middlewares.RoleMiddleware("admin"), h.Profile.AdminAddSkill)
+	protected.Post("/users/:id/experiences", middlewares.RoleMiddleware("admin"), h.Profile.AdminAddExperience)
+	protected.Put("/users/:id/experiences/:expID", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpdateExperience)
+	protected.Delete("/users/:id/experiences/:expID", middlewares.RoleMiddleware("admin"), h.Profile.AdminRemoveExperience)
+	protected.Post("/users/:id/portfolio", middlewares.RoleMiddleware("admin"), h.Profile.AdminAddPortfolioItem)
 	protected.Post("/auth/logout", h.Auth.Logout)
 	protected.Post("/auth/resend-verify", h.Auth.ResendVerifyEmail)
 	protected.Put("/me/password", h.User.ChangePassword)
@@ -89,10 +103,14 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	// ───────── Project Management ─────────
 	// Per-action permission (staff / creator / lead / member) is enforced inside the
 	// service layer via user.Caller — no RoleMiddleware guard needed on these routes.
+	protected.Get("/project-statuses", h.Project.ListStatuses)
 	protected.Post("/projects", h.Project.Create)
 	protected.Get("/projects", h.Project.List)
+	protected.Get("/projects/by-code/:code", h.Project.GetByCode)
 	protected.Get("/projects/:id", h.Project.Get)
 	protected.Put("/projects/:id", h.Project.Update)
+	protected.Get("/projects/:id/financial-plan", h.Project.GetFinancialPlan)
+	protected.Put("/projects/:id/financial-plan", h.Project.UpsertFinancialPlan)
 	protected.Post("/projects/:id/close", h.Project.Close)
 	protected.Delete("/projects/:id", h.Project.Delete)
 
@@ -106,9 +124,20 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Post("/projects/:id/transactions", h.Transaction.Create)
 	protected.Get("/projects/:id/transactions", h.Transaction.List)
 	protected.Get("/projects/:id/transactions/summary", h.Transaction.Summary)
+	protected.Get("/projects/:id/transactions/export", h.Transaction.ExportCSV)
 	protected.Get("/projects/:id/transactions/:txID", h.Transaction.Get)
 	protected.Put("/projects/:id/transactions/:txID", h.Transaction.Update)
 	protected.Delete("/projects/:id/transactions/:txID", h.Transaction.Delete)
+
+	// Dashboard — aggregate stats scoped to caller's accessible projects
+	protected.Get("/dashboard/stats", h.Dashboard.GetStats)
+
+	// Tasks — per-project task list; any active member may read/write
+	protected.Post("/projects/:id/tasks", h.Task.Create)
+	protected.Get("/projects/:id/tasks", h.Task.List)
+	protected.Get("/projects/:id/tasks/:taskID", h.Task.Get)
+	protected.Put("/projects/:id/tasks/:taskID", h.Task.Update)
+	protected.Delete("/projects/:id/tasks/:taskID", h.Task.Delete)
 
 	// Transaction Categories — read open to any authenticated user, writes admin-only
 	protected.Get("/tx-categories", h.TxCategory.List)

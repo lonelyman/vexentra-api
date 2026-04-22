@@ -32,6 +32,28 @@ type ProjectResponse struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+type ProjectStatusResponse struct {
+	Status         string `json:"status"`
+	LabelTH        string `json:"label_th"`
+	Phase          string `json:"phase"`
+	SortOrder      int    `json:"sort_order"`
+	IsTerminal     bool   `json:"is_terminal"`
+	RequiresClient bool   `json:"requires_client"`
+	IsActive       bool   `json:"is_active"`
+}
+
+func NewProjectStatusResponse(s project.ProjectStatusMeta) ProjectStatusResponse {
+	return ProjectStatusResponse{
+		Status:         string(s.Status),
+		LabelTH:        s.LabelTH,
+		Phase:          string(s.Phase),
+		SortOrder:      s.SortOrder,
+		IsTerminal:     s.IsTerminal,
+		RequiresClient: s.RequiresClient,
+		IsActive:       s.IsActive,
+	}
+}
+
 func NewProjectResponse(p *project.Project) ProjectResponse {
 	r := ProjectResponse{
 		ID:               p.ID.String(),
@@ -119,6 +141,68 @@ func NewProjectTotalsResponse(t *project.ProjectTotals) ProjectTotalsResponse {
 		Income:  t.Income,
 		Expense: t.Expense,
 		Net:     t.Net,
+	}
+}
+
+type ProjectFinancialPlanResponse struct {
+	ProjectID            string                              `json:"project_id"`
+	ContractAmount       decimal.Decimal                     `json:"contract_amount"`
+	RetentionAmount      decimal.Decimal                     `json:"retention_amount"`
+	PlannedDeliveryDate  *time.Time                          `json:"planned_delivery_date,omitempty"`
+	PaymentNote          *string                             `json:"payment_note,omitempty"`
+	Installments         []ProjectPaymentInstallmentResponse `json:"installments"`
+	InstallmentsTotal    decimal.Decimal                     `json:"installments_total"`
+	NetReceivable        decimal.Decimal                     `json:"net_receivable"`
+	UnallocatedRemaining decimal.Decimal                     `json:"unallocated_remaining"`
+	CreatedAt            time.Time                           `json:"created_at"`
+	UpdatedAt            time.Time                           `json:"updated_at"`
+}
+
+type ProjectPaymentInstallmentResponse struct {
+	ID                  string          `json:"id"`
+	ProjectID           string          `json:"project_id"`
+	SortOrder           int             `json:"sort_order"`
+	Title               string          `json:"title"`
+	Amount              decimal.Decimal `json:"amount"`
+	PlannedDeliveryDate *time.Time      `json:"planned_delivery_date,omitempty"`
+	PlannedReceiveDate  *time.Time      `json:"planned_receive_date,omitempty"`
+	Note                *string         `json:"note,omitempty"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+}
+
+func NewProjectFinancialPlanResponse(p *project.ProjectFinancialPlan) ProjectFinancialPlanResponse {
+	items := make([]ProjectPaymentInstallmentResponse, len(p.Installments))
+	for i := range p.Installments {
+		items[i] = NewProjectPaymentInstallmentResponse(p.Installments[i])
+	}
+	return ProjectFinancialPlanResponse{
+		ProjectID:            p.ProjectID.String(),
+		ContractAmount:       p.ContractAmount,
+		RetentionAmount:      p.RetentionAmount,
+		PlannedDeliveryDate:  p.PlannedDeliveryDate,
+		PaymentNote:          p.PaymentNote,
+		Installments:         items,
+		InstallmentsTotal:    p.InstallmentsTotal,
+		NetReceivable:        p.NetReceivable,
+		UnallocatedRemaining: p.UnallocatedRemaining,
+		CreatedAt:            p.CreatedAt,
+		UpdatedAt:            p.UpdatedAt,
+	}
+}
+
+func NewProjectPaymentInstallmentResponse(i *project.ProjectPaymentInstallment) ProjectPaymentInstallmentResponse {
+	return ProjectPaymentInstallmentResponse{
+		ID:                  i.ID.String(),
+		ProjectID:           i.ProjectID.String(),
+		SortOrder:           i.SortOrder,
+		Title:               i.Title,
+		Amount:              i.Amount,
+		PlannedDeliveryDate: i.PlannedDeliveryDate,
+		PlannedReceiveDate:  i.PlannedReceiveDate,
+		Note:                i.Note,
+		CreatedAt:           i.CreatedAt,
+		UpdatedAt:           i.UpdatedAt,
 	}
 }
 

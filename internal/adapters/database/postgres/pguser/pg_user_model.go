@@ -67,12 +67,13 @@ func (m *userModel) ToEntity() *user.User {
 
 func fromUserEntity(u *user.User) *userModel {
 	return &userModel{
-		ID:       u.ID,
-		PersonID: u.PersonID,
-		Username: u.Username,
-		Email:    u.Email,
-		Role:     u.Role,
-		Status:   u.Status,
+		ID:              u.ID,
+		PersonID:        u.PersonID,
+		Username:        u.Username,
+		Email:           u.Email,
+		Role:            u.Role,
+		Status:          u.Status,
+		IsEmailVerified: u.IsEmailVerified,
 	}
 }
 

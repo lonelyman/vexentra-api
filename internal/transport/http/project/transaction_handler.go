@@ -1,6 +1,8 @@
 package projecthdl
 
 import (
+	"bufio"
+	"fmt"
 	"strings"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"vexentra-api/pkg/custom_errors"
 	"vexentra-api/pkg/logger"
 	"vexentra-api/pkg/validation"
+	"vexentra-api/pkg/wela"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v3"
@@ -111,14 +114,14 @@ func (h *TransactionHandler) List(c fiber.Ctx) error {
 
 	var occurredGTE, occurredLT *time.Time
 	if raw := strings.TrimSpace(c.Query("from", "")); raw != "" {
-		t, terr := time.Parse(time.RFC3339, raw)
+		t, terr := wela.ParseRFC3339Any(raw)
 		if terr != nil {
 			return custom_errors.New(400, custom_errors.ErrValidation, "from ต้องอยู่ในรูปแบบ RFC3339")
 		}
 		occurredGTE = &t
 	}
 	if raw := strings.TrimSpace(c.Query("to", "")); raw != "" {
-		t, terr := time.Parse(time.RFC3339, raw)
+		t, terr := wela.ParseRFC3339Any(raw)
 		if terr != nil {
 			return custom_errors.New(400, custom_errors.ErrValidation, "to ต้องอยู่ในรูปแบบ RFC3339")
 		}
@@ -205,6 +208,56 @@ func (h *TransactionHandler) Delete(c fiber.Ctx) error {
 		return svcErr
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// ExportCSV — GET /api/v1/projects/:id/transactions/export
+// Streams all transactions for the project as a UTF-8 CSV (BOM-prefixed for Excel compat).
+func (h *TransactionHandler) ExportCSV(c fiber.Ctx) error {
+	caller, err := auth.GetCaller(c)
+	if err != nil {
+		return err
+	}
+	projectID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "project id ไม่ถูกต้อง")
+	}
+
+	rows, svcErr := h.svc.ListForExport(c.Context(), caller, projectID)
+	if svcErr != nil {
+		return svcErr
+	}
+
+	filename := fmt.Sprintf("transactions-%s.csv", projectID)
+	c.Set("Content-Type", "text/csv; charset=utf-8")
+	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+
+	return c.SendStreamWriter(func(w *bufio.Writer) {
+		// BOM so Excel opens UTF-8 correctly without re-encoding
+		w.WriteString("\xEF\xBB\xBF")
+		w.WriteString("Occurred At,Category,Type,Amount,Currency,Note\n")
+		for _, row := range rows {
+			note := ""
+			if row.Note != nil {
+				note = strings.ReplaceAll(*row.Note, `"`, `""`)
+				note = `"` + note + `"`
+			}
+			fmt.Fprintf(w, "%s,%s,%s,%s,%s,%s\n",
+				wela.FormatISODate(row.OccurredAt),
+				csvEscape(row.CategoryName),
+				row.CategoryType,
+				row.Amount.StringFixed(2),
+				row.CurrencyCode,
+				note,
+			)
+		}
+	})
+}
+
+func csvEscape(s string) string {
+	if strings.ContainsAny(s, `,"\n`) {
+		return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+	}
+	return s
 }
 
 // parseTxRoute parses caller + :id + :txID in one call; keeps per-handler noise low.

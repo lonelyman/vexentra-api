@@ -3,6 +3,7 @@ package pgproject
 import (
 	"context"
 	"errors"
+	"time"
 
 	"vexentra-api/internal/adapters/database/postgres/pgtx"
 	"vexentra-api/internal/modules/project"
@@ -139,6 +140,49 @@ func (r *projectTransactionRepository) Update(ctx context.Context, t *project.Pr
 		return custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบรายการธุรกรรมนี้")
 	}
 	return nil
+}
+
+func (r *projectTransactionRepository) ListForExport(ctx context.Context, projectID uuid.UUID) ([]*project.TransactionExportRow, error) {
+	const query = `
+		SELECT
+			pt.occurred_at,
+			tc.name  AS category_name,
+			tc.type  AS category_type,
+			pt.amount,
+			pt.currency_code,
+			pt.note
+		FROM project_transactions pt
+		JOIN transaction_categories tc ON tc.id = pt.category_id AND tc.deleted_at IS NULL
+		WHERE pt.project_id = ?
+		  AND pt.deleted_at IS NULL
+		ORDER BY pt.occurred_at ASC
+	`
+	type row struct {
+		OccurredAt   time.Time
+		CategoryName string
+		CategoryType string
+		Amount       decimal.Decimal
+		CurrencyCode string
+		Note         *string
+	}
+	var rows []row
+	if err := r.db.WithContext(ctx).Raw(query, projectID).Scan(&rows).Error; err != nil {
+		r.logger.Error("DB_LIST_TRANSACTIONS_EXPORT_ERROR", err)
+		return nil, err
+	}
+
+	result := make([]*project.TransactionExportRow, len(rows))
+	for i, r := range rows {
+		result[i] = &project.TransactionExportRow{
+			OccurredAt:   r.OccurredAt,
+			CategoryName: r.CategoryName,
+			CategoryType: r.CategoryType,
+			Amount:       r.Amount,
+			CurrencyCode: r.CurrencyCode,
+			Note:         r.Note,
+		}
+	}
+	return result, nil
 }
 
 func (r *projectTransactionRepository) Delete(ctx context.Context, id uuid.UUID) error {

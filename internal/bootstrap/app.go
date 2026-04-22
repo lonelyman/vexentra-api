@@ -10,18 +10,23 @@ import (
 	"vexentra-api/internal/adapters/database/postgres/pgperson"
 	"vexentra-api/internal/adapters/database/postgres/pgproject"
 	"vexentra-api/internal/adapters/database/postgres/pgsocialplatform"
+	"vexentra-api/internal/adapters/database/postgres/pgtask"
 	"vexentra-api/internal/adapters/database/postgres/pgtxcategory"
 	"vexentra-api/internal/adapters/database/postgres/pguser"
 	"vexentra-api/internal/config"
+	"vexentra-api/internal/modules/dashboard/dashboardsvc"
 	"vexentra-api/internal/modules/project/projectsvc"
 	"vexentra-api/internal/modules/socialplatform/platformsvc"
+	"vexentra-api/internal/modules/task/tasksvc"
 	"vexentra-api/internal/modules/txcategory/txcategorysvc"
 	"vexentra-api/internal/modules/user/usersvc"
 	"vexentra-api/internal/transport/http"
 	authhdl "vexentra-api/internal/transport/http/auth"
+	dashboardhdl "vexentra-api/internal/transport/http/dashboard"
 	healthhdl "vexentra-api/internal/transport/http/health"
 	projecthdl "vexentra-api/internal/transport/http/project"
 	socialplatformhdl "vexentra-api/internal/transport/http/socialplatform"
+	taskhdl "vexentra-api/internal/transport/http/task"
 	txcategoryhdl "vexentra-api/internal/transport/http/txcategory"
 	userhdl "vexentra-api/internal/transport/http/user"
 	"vexentra-api/pkg/auth"
@@ -71,13 +76,17 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	txRepo := pgproject.NewProjectTransactionRepository(db, l)
 	categoryRepo := pgtxcategory.NewTransactionCategoryRepository(db, l)
 
-	userSvc := usersvc.NewUserService(userRepo, personRepo, authSvc, l)
+	userSvc := usersvc.NewUserService(db, userRepo, personRepo, authSvc, l)
 	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, socialPlatformRepo, l)
 	socialPlatformSvc := platformsvc.NewSocialPlatformService(socialPlatformRepo, l)
 	projectSvc := projectsvc.NewProjectService(db, projectRepo, memberRepo, cfg.App.ProjectCodePrefix, l)
 	memberSvc := projectsvc.NewMemberService(projectSvc, memberRepo, l)
 	txSvc := projectsvc.NewTransactionService(projectSvc, memberRepo, txRepo, categoryRepo, l)
 	categorySvc := txcategorysvc.NewTransactionCategoryService(categoryRepo, l)
+
+	taskRepo := pgtask.NewTaskRepository(db, l)
+	taskSvc := tasksvc.New(projectSvc, memberRepo, taskRepo, l)
+	dashboardSvc := dashboardsvc.New(db, l)
 
 	userHdl := userhdl.NewUserHandler(userSvc, l)
 	profileHdl := userhdl.NewProfileHandler(profileSvc, cfg.App.ShowcasePersonID, l)
@@ -88,6 +97,8 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	memberHdl := projecthdl.NewMemberHandler(memberSvc, l)
 	txHdl := projecthdl.NewTransactionHandler(txSvc, l)
 	txCategoryHdl := txcategoryhdl.NewCategoryHandler(categorySvc, l)
+	dashboardHdl := dashboardhdl.NewDashboardHandler(dashboardSvc, l)
+	taskHdl := taskhdl.NewTaskHandler(taskSvc, l)
 
 	http.SetupRouter(server, http.Handlers{
 		User:           userHdl,
@@ -99,6 +110,8 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 		Member:         memberHdl,
 		Transaction:    txHdl,
 		TxCategory:     txCategoryHdl,
+		Dashboard:      dashboardHdl,
+		Task:           taskHdl,
 		AuthSvc:        authSvc,
 	})
 

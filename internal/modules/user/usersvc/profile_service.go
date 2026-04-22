@@ -27,6 +27,12 @@ type ProfileService interface {
 	GetFullProfile(ctx context.Context, personID uuid.UUID, viewerIsOwner bool) (*GetFullProfileResult, error)
 
 	UpsertProfile(ctx context.Context, personID uuid.UUID, p *user.Profile) error
+	AdminUpsertProfile(ctx context.Context, userID uuid.UUID, p *user.Profile) error
+	AdminAddSkill(ctx context.Context, userID uuid.UUID, s *user.Skill) error
+	AdminAddExperience(ctx context.Context, userID uuid.UUID, e *user.Experience) error
+	AdminUpdateExperience(ctx context.Context, userID, expID uuid.UUID, e *user.Experience) error
+	AdminRemoveExperience(ctx context.Context, userID, expID uuid.UUID) error
+	AdminAddPortfolioItem(ctx context.Context, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
 
 	AddSkill(ctx context.Context, personID uuid.UUID, s *user.Skill) error
 	RemoveSkill(ctx context.Context, skillID, personID uuid.UUID) error
@@ -248,4 +254,75 @@ func (s *profileService) UpsertSocialLink(ctx context.Context, personID, platfor
 
 func (s *profileService) DeleteSocialLink(ctx context.Context, linkID, personID uuid.UUID) error {
 	return s.profileRepo.DeleteSocialLink(ctx, linkID, personID)
+}
+
+func (s *profileService) AdminUpsertProfile(ctx context.Context, userID uuid.UUID, p *user.Profile) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	p.PersonID = personID
+	return s.profileRepo.UpsertProfile(ctx, p)
+}
+
+func (s *profileService) AdminAddSkill(ctx context.Context, userID uuid.UUID, skill *user.Skill) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	skill.PersonID = personID
+	return s.profileRepo.CreateSkill(ctx, skill)
+}
+
+func (s *profileService) AdminAddExperience(ctx context.Context, userID uuid.UUID, e *user.Experience) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	e.PersonID = personID
+	return s.profileRepo.CreateExperience(ctx, e)
+}
+
+func (s *profileService) AdminUpdateExperience(ctx context.Context, userID, expID uuid.UUID, e *user.Experience) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	e.ID = expID
+	e.PersonID = personID
+	return s.profileRepo.UpdateExperience(ctx, e)
+}
+
+func (s *profileService) AdminRemoveExperience(ctx context.Context, userID, expID uuid.UUID) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return s.profileRepo.DeleteExperience(ctx, expID, personID)
+}
+
+func (s *profileService) AdminAddPortfolioItem(ctx context.Context, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	item.PersonID = personID
+	if item.Slug == "" {
+		item.Slug = slugify(item.Title)
+	}
+	if item.Status == "" {
+		item.Status = user.PortfolioStatusDraft
+	}
+	if err := s.profileRepo.CreatePortfolioItem(ctx, item); err != nil {
+		return err
+	}
+	return s.syncTags(ctx, item, tagNames)
+}
+
+func (s *profileService) personIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	u, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || u == nil {
+		return uuid.Nil, custom_errors.NewNotFoundError("USER_NOT_FOUND", "ไม่พบผู้ใช้งาน")
+	}
+	return u.PersonID, nil
 }

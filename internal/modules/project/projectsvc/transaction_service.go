@@ -38,6 +38,8 @@ type TransactionService interface {
 	Summary(ctx context.Context, caller user.Caller, projectID uuid.UUID) (*project.ProjectTotals, error)
 	Update(ctx context.Context, caller user.Caller, projectID, txID uuid.UUID, in UpdateTransactionInput) (*project.ProjectTransaction, error)
 	Delete(ctx context.Context, caller user.Caller, projectID, txID uuid.UUID) error
+	// ListForExport returns all rows for a project joined with category data, for CSV generation.
+	ListForExport(ctx context.Context, caller user.Caller, projectID uuid.UUID) ([]*project.TransactionExportRow, error)
 }
 
 type transactionService struct {
@@ -176,6 +178,13 @@ func (s *transactionService) Update(ctx context.Context, caller user.Caller, pro
 		return nil, err
 	}
 	return t, nil
+}
+
+func (s *transactionService) ListForExport(ctx context.Context, caller user.Caller, projectID uuid.UUID) ([]*project.TransactionExportRow, error) {
+	if _, err := s.projectSvc.CanAccessProject(ctx, caller, projectID); err != nil {
+		return nil, err
+	}
+	return s.txRepo.ListForExport(ctx, projectID)
 }
 
 func (s *transactionService) Delete(ctx context.Context, caller user.Caller, projectID, txID uuid.UUID) error {

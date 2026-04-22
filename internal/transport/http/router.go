@@ -5,7 +5,9 @@ import (
 	authhdl "vexentra-api/internal/transport/http/auth"
 	healthhdl "vexentra-api/internal/transport/http/health"
 	"vexentra-api/internal/transport/http/middlewares"
+	projecthdl "vexentra-api/internal/transport/http/project"
 	socialplatformhdl "vexentra-api/internal/transport/http/socialplatform"
+	txcategoryhdl "vexentra-api/internal/transport/http/txcategory"
 	userhdl "vexentra-api/internal/transport/http/user"
 	"vexentra-api/pkg/auth"
 
@@ -18,6 +20,10 @@ type Handlers struct {
 	SocialPlatform *socialplatformhdl.SocialPlatformHandler
 	Auth           *authhdl.AuthHandler
 	Health         *healthhdl.HealthHandler
+	Project        *projecthdl.ProjectHandler
+	Member         *projecthdl.MemberHandler
+	Transaction    *projecthdl.TransactionHandler
+	TxCategory     *txcategoryhdl.CategoryHandler
 	AuthSvc        auth.AuthService
 }
 
@@ -79,4 +85,35 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Post("/social-platforms", middlewares.RoleMiddleware("admin"), h.SocialPlatform.Create)
 	protected.Put("/social-platforms/:id", middlewares.RoleMiddleware("admin"), h.SocialPlatform.Update)
 	protected.Delete("/social-platforms/:id", middlewares.RoleMiddleware("admin"), h.SocialPlatform.Delete)
+
+	// ───────── Project Management ─────────
+	// Per-action permission (staff / creator / lead / member) is enforced inside the
+	// service layer via user.Caller — no RoleMiddleware guard needed on these routes.
+	protected.Post("/projects", h.Project.Create)
+	protected.Get("/projects", h.Project.List)
+	protected.Get("/projects/:id", h.Project.Get)
+	protected.Put("/projects/:id", h.Project.Update)
+	protected.Post("/projects/:id/close", h.Project.Close)
+	protected.Delete("/projects/:id", h.Project.Delete)
+
+	// Members
+	protected.Post("/projects/:id/members", h.Member.Add)
+	protected.Get("/projects/:id/members", h.Member.List)
+	protected.Delete("/projects/:id/members/:memberID", h.Member.Remove)
+	protected.Post("/projects/:id/transfer-lead", h.Member.TransferLead)
+
+	// Transactions — all write paths return 409 PROJECT_CLOSED once project is closed
+	protected.Post("/projects/:id/transactions", h.Transaction.Create)
+	protected.Get("/projects/:id/transactions", h.Transaction.List)
+	protected.Get("/projects/:id/transactions/summary", h.Transaction.Summary)
+	protected.Get("/projects/:id/transactions/:txID", h.Transaction.Get)
+	protected.Put("/projects/:id/transactions/:txID", h.Transaction.Update)
+	protected.Delete("/projects/:id/transactions/:txID", h.Transaction.Delete)
+
+	// Transaction Categories — read open to any authenticated user, writes admin-only
+	protected.Get("/tx-categories", h.TxCategory.List)
+	protected.Get("/tx-categories/:id", h.TxCategory.Get)
+	protected.Post("/tx-categories", middlewares.RoleMiddleware("admin"), h.TxCategory.Create)
+	protected.Put("/tx-categories/:id", middlewares.RoleMiddleware("admin"), h.TxCategory.Update)
+	protected.Delete("/tx-categories/:id", middlewares.RoleMiddleware("admin"), h.TxCategory.Delete)
 }

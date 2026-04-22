@@ -211,7 +211,7 @@ func (s *userService) registerWithInviteToken(ctx context.Context, email, userna
 		PersonID: targetPerson.ID,
 		Username: username,
 		Email:    email,
-		Role:     user.UserRoleUser,
+		Role:     user.UserRoleMember,
 		Status:   user.UserStatusPendingVerification,
 	}
 	if err := s.repo.Create(ctx, newUser); err != nil {

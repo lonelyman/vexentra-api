@@ -13,10 +13,12 @@ const (
 	UserStatusPendingVerification = "pending_verification"
 )
 
-// Role ของผู้ใช้ในระบบ
+// Role ของผู้ใช้ในระบบ — ตรงกับ CHECK constraint ใน migration 20260422000003
+// (legacy value "user" ถูก migrate เป็น "member" แล้ว)
 const (
-	UserRoleUser  = "user"
-	UserRoleAdmin = "admin"
+	UserRoleMember  = "member"
+	UserRoleManager = "manager"
+	UserRoleAdmin   = "admin"
 )
 
 // ประเภทผู้ให้บริการยืนยันตัวตน
@@ -33,7 +35,7 @@ type User struct {
 	PersonID    uuid.UUID // FK → persons.id (linked identity record)
 	Username    string
 	Email       string
-	Role        string     // user | admin
+	Role        string     // member | manager | admin
 	Status      string     // active | banned | pending_verification
 	LastLoginAt *time.Time // nil = ยังไม่เคย login
 	CreatedAt   time.Time
@@ -52,6 +54,22 @@ type User struct {
 	// Association — โหลดเมื่อต้องการเท่านั้น
 	Auths []*UserAuth
 }
+
+// Caller identifies the acting user for permission-sensitive service calls.
+// Handlers build it from JWT claims and pass it explicitly — services never
+// read identity from ctx or globals.
+type Caller struct {
+	UserID   uuid.UUID
+	PersonID uuid.UUID
+	Role     string // UserRoleMember | UserRoleManager | UserRoleAdmin
+}
+
+func (c Caller) IsAdmin() bool   { return c.Role == UserRoleAdmin }
+func (c Caller) IsManager() bool { return c.Role == UserRoleManager }
+
+// IsStaff returns true for roles that bypass ownership/membership checks
+// (admin + manager). Members are not staff.
+func (c Caller) IsStaff() bool { return c.IsAdmin() || c.IsManager() }
 
 // UserAuth เก็บข้อมูลการยืนยันตัวตนแยกต่างหาก
 // รองรับหลาย provider ต่อ 1 user (local, google, github ฯลฯ)

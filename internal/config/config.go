@@ -23,6 +23,7 @@ type AppConfig struct {
 	Timezone           string
 	CORSAllowedOrigins []string // comma-separated via API_CORS_ALLOWED_ORIGINS
 	ShowcasePersonID   string   // optional: fixed person ID for public showcase endpoint
+	ProjectCodePrefix  string   // uppercase alphabetic prefix for PREFIX-YYYY-NNNN project codes
 }
 
 type PostgresDbs struct {
@@ -70,6 +71,7 @@ func LoadConfig() (*Config, error) {
 			Timezone:           getEnv("API_TIMEZONE", "Asia/Bangkok"),
 			CORSAllowedOrigins: getEnvAsSlice("API_CORS_ALLOWED_ORIGINS", nil),
 			ShowcasePersonID:   getEnv("APP_SHOWCASE_PERSON_ID", ""),
+			ProjectCodePrefix:  strings.ToUpper(getEnv("APP_PROJECT_CODE_PREFIX", "VX")),
 		},
 		Postgres: PostgresDbs{
 			Primary: PostgresConfig{

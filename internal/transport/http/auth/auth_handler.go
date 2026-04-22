@@ -85,8 +85,19 @@ func (h *AuthHandler) RefreshToken(c fiber.Ctx) error {
 		return custom_errors.New(401, custom_errors.ErrUnauthorized, "Refresh Token ไม่ถูกต้องหรือหมดอายุ")
 	}
 
-	// Issue a new token pair with the same userID + personID
-	tokenPair, err := h.authSvc.GenerateTokenPair(claims.GetUserID(), claims.GetPersonID(), "user")
+	// Look up current user to carry the up-to-date role into the new access token —
+	// never trust a role baked into the refresh token (the user may have been promoted
+	// or demoted since issuance).
+	userID, err := uuid.Parse(claims.GetUserID())
+	if err != nil {
+		return custom_errors.New(401, custom_errors.ErrUnauthorized, "Refresh Token ไม่ถูกต้อง")
+	}
+	currentUser, err := h.userSvc.GetProfile(c.Context(), userID)
+	if err != nil {
+		return err
+	}
+
+	tokenPair, err := h.authSvc.GenerateTokenPair(claims.GetUserID(), claims.GetPersonID(), currentUser.Role)
 	if err != nil {
 		h.logger.Error("Failed to generate token pair on refresh", err)
 		return custom_errors.NewInternalError("ไม่สามารถออก Token ใหม่ได้")

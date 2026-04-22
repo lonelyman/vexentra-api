@@ -17,7 +17,7 @@ type personModel struct {
 	InviteToken          *string    `gorm:"column:invite_token;size:128;uniqueIndex:idx_persons_invite_token,where:deleted_at IS NULL"`
 	InviteTokenExpiresAt *time.Time `gorm:"column:invite_token_expires_at"`
 	LinkedUserID         *uuid.UUID `gorm:"type:uuid;column:linked_user_id;uniqueIndex:idx_persons_linked_user,where:deleted_at IS NULL"`
-	CreatedByUserID      uuid.UUID  `gorm:"type:uuid;column:created_by_user_id;not null;index"`
+	CreatedByUserID      *uuid.UUID `gorm:"type:uuid;column:created_by_user_id;index"`
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	DeletedAt            gorm.DeletedAt `gorm:"index"`

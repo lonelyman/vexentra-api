@@ -16,7 +16,7 @@ type Person struct {
 	InviteToken          *string    // one-time token สำหรับ invite link (auto-link เมื่อใช้)
 	InviteTokenExpiresAt *time.Time // nil = ไม่มี token
 	LinkedUserID         *uuid.UUID // nil = ยังไม่มี account; non-nil = เชื่อมกับ users.id
-	CreatedByUserID      uuid.UUID  // user ที่สร้าง person record นี้
+	CreatedByUserID      *uuid.UUID // user ที่สร้าง person record นี้ (nil = self-registered)
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	DeletedAt            *time.Time

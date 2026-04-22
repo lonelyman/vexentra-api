@@ -28,9 +28,9 @@ func NewProfileRepository(db *gorm.DB, l logger.Logger) user.ProfileRepository {
 //  Profile
 // ─────────────────────────────────────────────────────────────────────
 
-func (r *profileRepository) GetProfileByUserID(ctx context.Context, userID uuid.UUID) (*user.Profile, error) {
+func (r *profileRepository) GetProfileByPersonID(ctx context.Context, personID uuid.UUID) (*user.Profile, error) {
 	var m profileModel
-	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&m).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("person_id = ?", personID).First(&m).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil // no profile yet — not an error
 		}
@@ -42,7 +42,7 @@ func (r *profileRepository) GetProfileByUserID(ctx context.Context, userID uuid.
 
 func (r *profileRepository) UpsertProfile(ctx context.Context, p *user.Profile) error {
 	var existing profileModel
-	err := r.db.WithContext(ctx).Where("user_id = ?", p.UserID).First(&existing).Error
+	err := r.db.WithContext(ctx).Where("person_id = ?", p.PersonID).First(&existing).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// First time — create
@@ -53,7 +53,7 @@ func (r *profileRepository) UpsertProfile(ctx context.Context, p *user.Profile) 
 		p.ID = id
 		m := &profileModel{
 			ID:          p.ID,
-			UserID:      p.UserID,
+			PersonID:    p.PersonID,
 			DisplayName: p.DisplayName,
 			Headline:    p.Headline,
 			Bio:         p.Bio,
@@ -96,10 +96,10 @@ func (r *profileRepository) UpsertProfile(ctx context.Context, p *user.Profile) 
 //  Social Links
 // ─────────────────────────────────────────────────────────────────────
 
-func (r *profileRepository) ListSocialLinks(ctx context.Context, userID uuid.UUID) ([]*user.SocialLink, error) {
+func (r *profileRepository) ListSocialLinks(ctx context.Context, personID uuid.UUID) ([]*user.SocialLink, error) {
 	var models []socialLinkModel
 	if err := r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
+		Where("person_id = ?", personID).
 		Order("sort_order ASC, created_at ASC").
 		Find(&models).Error; err != nil {
 		r.logger.Error("DB_LIST_SOCIAL_LINKS_ERROR", err)
@@ -113,10 +113,10 @@ func (r *profileRepository) ListSocialLinks(ctx context.Context, userID uuid.UUI
 }
 
 func (r *profileRepository) UpsertSocialLink(ctx context.Context, l *user.SocialLink) error {
-	// one platform per user — upsert by (user_id, platform_id)
+	// one platform per person — upsert by (person_id, platform_id)
 	var existing socialLinkModel
 	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND platform_id = ?", l.UserID, l.PlatformID).
+		Where("person_id = ? AND platform_id = ?", l.PersonID, l.PlatformID).
 		First(&existing).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -127,7 +127,7 @@ func (r *profileRepository) UpsertSocialLink(ctx context.Context, l *user.Social
 		l.ID = id
 		m := &socialLinkModel{
 			ID:         l.ID,
-			UserID:     l.UserID,
+			PersonID:   l.PersonID,
 			PlatformID: l.PlatformID,
 			URL:        l.URL,
 			SortOrder:  l.SortOrder,
@@ -156,9 +156,9 @@ func (r *profileRepository) UpsertSocialLink(ctx context.Context, l *user.Social
 	return nil
 }
 
-func (r *profileRepository) DeleteSocialLink(ctx context.Context, linkID, userID uuid.UUID) error {
+func (r *profileRepository) DeleteSocialLink(ctx context.Context, linkID, personID uuid.UUID) error {
 	result := r.db.WithContext(ctx).
-		Where("id = ? AND user_id = ?", linkID, userID).
+		Where("id = ? AND person_id = ?", linkID, personID).
 		Delete(&socialLinkModel{})
 	if result.Error != nil {
 		r.logger.Error("DB_DELETE_SOCIAL_LINK_ERROR", result.Error)
@@ -174,10 +174,10 @@ func (r *profileRepository) DeleteSocialLink(ctx context.Context, linkID, userID
 //  Skills
 // ─────────────────────────────────────────────────────────────────────
 
-func (r *profileRepository) ListSkillsByUserID(ctx context.Context, userID uuid.UUID) ([]*user.Skill, error) {
+func (r *profileRepository) ListSkillsByPersonID(ctx context.Context, personID uuid.UUID) ([]*user.Skill, error) {
 	var models []skillModel
 	if err := r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
+		Where("person_id = ?", personID).
 		Order("sort_order ASC, created_at ASC").
 		Find(&models).Error; err != nil {
 		r.logger.Error("DB_LIST_SKILLS_ERROR", err)
@@ -198,7 +198,7 @@ func (r *profileRepository) CreateSkill(ctx context.Context, s *user.Skill) erro
 	s.ID = id
 	m := &skillModel{
 		ID:          s.ID,
-		UserID:      s.UserID,
+		PersonID:    s.PersonID,
 		Name:        s.Name,
 		Category:    s.Category,
 		Proficiency: s.Proficiency,
@@ -213,9 +213,9 @@ func (r *profileRepository) CreateSkill(ctx context.Context, s *user.Skill) erro
 	return nil
 }
 
-func (r *profileRepository) DeleteSkill(ctx context.Context, skillID, userID uuid.UUID) error {
+func (r *profileRepository) DeleteSkill(ctx context.Context, skillID, personID uuid.UUID) error {
 	result := r.db.WithContext(ctx).
-		Where("id = ? AND user_id = ?", skillID, userID).
+		Where("id = ? AND person_id = ?", skillID, personID).
 		Delete(&skillModel{})
 	if result.Error != nil {
 		r.logger.Error("DB_DELETE_SKILL_ERROR", result.Error)
@@ -231,10 +231,10 @@ func (r *profileRepository) DeleteSkill(ctx context.Context, skillID, userID uui
 //  Experiences
 // ─────────────────────────────────────────────────────────────────────
 
-func (r *profileRepository) ListExperiencesByUserID(ctx context.Context, userID uuid.UUID) ([]*user.Experience, error) {
+func (r *profileRepository) ListExperiencesByPersonID(ctx context.Context, personID uuid.UUID) ([]*user.Experience, error) {
 	var models []experienceModel
 	if err := r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
+		Where("person_id = ?", personID).
 		Order("sort_order ASC, started_at DESC").
 		Find(&models).Error; err != nil {
 		r.logger.Error("DB_LIST_EXPERIENCES_ERROR", err)
@@ -255,7 +255,7 @@ func (r *profileRepository) CreateExperience(ctx context.Context, e *user.Experi
 	e.ID = id
 	m := &experienceModel{
 		ID:          e.ID,
-		UserID:      e.UserID,
+		PersonID:    e.PersonID,
 		Company:     e.Company,
 		Position:    e.Position,
 		Location:    e.Location,
@@ -287,7 +287,7 @@ func (r *profileRepository) UpdateExperience(ctx context.Context, e *user.Experi
 	}
 	result := r.db.WithContext(ctx).
 		Model(&experienceModel{}).
-		Where("id = ? AND user_id = ?", e.ID, e.UserID).
+		Where("id = ? AND person_id = ?", e.ID, e.PersonID).
 		Updates(updates)
 	if result.Error != nil {
 		r.logger.Error("DB_UPDATE_EXPERIENCE_ERROR", result.Error)
@@ -299,9 +299,9 @@ func (r *profileRepository) UpdateExperience(ctx context.Context, e *user.Experi
 	return nil
 }
 
-func (r *profileRepository) DeleteExperience(ctx context.Context, expID, userID uuid.UUID) error {
+func (r *profileRepository) DeleteExperience(ctx context.Context, expID, personID uuid.UUID) error {
 	result := r.db.WithContext(ctx).
-		Where("id = ? AND user_id = ?", expID, userID).
+		Where("id = ? AND person_id = ?", expID, personID).
 		Delete(&experienceModel{})
 	if result.Error != nil {
 		r.logger.Error("DB_DELETE_EXPERIENCE_ERROR", result.Error)
@@ -317,11 +317,11 @@ func (r *profileRepository) DeleteExperience(ctx context.Context, expID, userID 
 //  Portfolio Items
 // ─────────────────────────────────────────────────────────────────────
 
-func (r *profileRepository) ListPortfolioByUserID(ctx context.Context, userID uuid.UUID, publishedOnly bool) ([]*user.PortfolioItem, error) {
+func (r *profileRepository) ListPortfolioByPersonID(ctx context.Context, personID uuid.UUID, publishedOnly bool) ([]*user.PortfolioItem, error) {
 	var models []portfolioItemModel
 	q := r.db.WithContext(ctx).
 		Preload("Tags").
-		Where("user_id = ?", userID).
+		Where("person_id = ?", personID).
 		Order("sort_order ASC, created_at DESC")
 	if publishedOnly {
 		q = q.Where("status = ?", user.PortfolioStatusPublished)
@@ -357,7 +357,7 @@ func (r *profileRepository) CreatePortfolioItem(ctx context.Context, item *user.
 	item.ID = id
 	m := &portfolioItemModel{
 		ID:              item.ID,
-		UserID:          item.UserID,
+		PersonID:        item.PersonID,
 		Title:           item.Title,
 		Slug:            item.Slug,
 		Summary:         item.Summary,
@@ -384,7 +384,7 @@ func (r *profileRepository) CreatePortfolioItem(ctx context.Context, item *user.
 func (r *profileRepository) UpdatePortfolioItem(ctx context.Context, item *user.PortfolioItem) error {
 	result := r.db.WithContext(ctx).
 		Model(&portfolioItemModel{}).
-		Where("id = ? AND user_id = ?", item.ID, item.UserID).
+		Where("id = ? AND person_id = ?", item.ID, item.PersonID).
 		Updates(map[string]any{
 			"title":            item.Title,
 			"slug":             item.Slug,
@@ -410,9 +410,9 @@ func (r *profileRepository) UpdatePortfolioItem(ctx context.Context, item *user.
 	return nil
 }
 
-func (r *profileRepository) DeletePortfolioItem(ctx context.Context, itemID, userID uuid.UUID) error {
+func (r *profileRepository) DeletePortfolioItem(ctx context.Context, itemID, personID uuid.UUID) error {
 	result := r.db.WithContext(ctx).
-		Where("id = ? AND user_id = ?", itemID, userID).
+		Where("id = ? AND person_id = ?", itemID, personID).
 		Delete(&portfolioItemModel{})
 	if result.Error != nil {
 		r.logger.Error("DB_DELETE_PORTFOLIO_ITEM_ERROR", result.Error)

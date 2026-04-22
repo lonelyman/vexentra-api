@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"vexentra-api/internal/adapters/database/postgres/pgperson"
 	"vexentra-api/internal/adapters/database/postgres/pgsocialplatform"
 	"vexentra-api/internal/adapters/database/postgres/pguser"
 	"vexentra-api/internal/config"
@@ -48,29 +49,24 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
-	// Run Migrations
-	// Use pguser.ResetSchema(db) once when column types change (dev only), then switch back to AutoMigrate.
-	if err := pguser.AutoMigrate(db); err != nil {
-		return nil, err
-	}
-	if err := pgsocialplatform.AutoMigrate(db); err != nil {
-		return nil, err
-	}
+	// Schema is managed by SQL migrations under database/migrations (goose).
+	// GORM is used for query/ORM only — it does not alter table structure.
 
 	server := NewFiberServer(cfg, l)
 
 	// DI Section
 	authSvc := auth.NewAuthService(cfg.JWT)
 	userRepo := pguser.NewUserRepository(db, l)
+	personRepo := pgperson.NewPersonRepository(db, l)
 	profileRepo := pguser.NewProfileRepository(db, l)
 	socialPlatformRepo := pgsocialplatform.NewSocialPlatformRepository(db, l)
-	userSvc := usersvc.NewUserService(userRepo, authSvc, l)
+	userSvc := usersvc.NewUserService(userRepo, personRepo, authSvc, l)
 	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, socialPlatformRepo, l)
 	socialPlatformSvc := platformsvc.NewSocialPlatformService(socialPlatformRepo, l)
 	userHdl := userhdl.NewUserHandler(userSvc, l)
-	profileHdl := userhdl.NewProfileHandler(profileSvc, cfg.App.ShowcaseUserID, l)
+	profileHdl := userhdl.NewProfileHandler(profileSvc, cfg.App.ShowcasePersonID, l)
 	socialPlatformHdl := socialplatformhdl.NewSocialPlatformHandler(socialPlatformSvc, l)
-	authHdl := authhdl.NewAuthHandler(userSvc, authSvc, l)
+	authHdl := authhdl.NewAuthHandler(userSvc, authSvc, cfg.App.Env, l)
 	healthHdl := healthhdl.NewHealthHandler(db, rdb)
 
 	http.SetupRouter(server, http.Handlers{

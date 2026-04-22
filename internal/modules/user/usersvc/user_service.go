@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"vexentra-api/internal/modules/person"
 	"vexentra-api/internal/modules/user"
 	"vexentra-api/pkg/auth"
 	"vexentra-api/pkg/custom_errors"
@@ -20,6 +21,15 @@ import (
 type RegisterResult struct {
 	User      *user.User
 	TokenPair *auth.TokenPair
+	// ClaimSuggestion คือ Person ที่ InviteEmail ตรงกับ email ที่สมัคร
+	// frontend แสดง dialog ถามว่าต้องการ claim ไหม
+	ClaimSuggestion *ClaimSuggestion
+}
+
+// ClaimSuggestion เป็นข้อมูล Person ที่อาจเป็นของ user คนนี้
+type ClaimSuggestion struct {
+	PersonID string
+	Name     string
 }
 
 // ListUsersOffsetResult bundles users + total count for offset pagination.
@@ -36,11 +46,14 @@ type ListUsersCursorResult struct {
 }
 
 type UserService interface {
-	Register(ctx context.Context, email, password string) (*RegisterResult, error)
+	Register(ctx context.Context, email, password, inviteToken string) (*RegisterResult, error)
 	Login(ctx context.Context, email, password string) (*RegisterResult, error)
 	GetProfile(ctx context.Context, userID uuid.UUID) (*user.User, error)
 	ListUsersOffset(ctx context.Context, limit, offset int) (*ListUsersOffsetResult, error)
 	ListUsersCursor(ctx context.Context, afterID uuid.UUID, limit int) (*ListUsersCursorResult, error)
+
+	// Claim Person — user ยืนยันว่าต้องการผูก Person ที่ระบบ suggest
+	ClaimPerson(ctx context.Context, userID, personID uuid.UUID) error
 
 	// Email Verification
 	VerifyEmail(ctx context.Context, token string) error
@@ -53,23 +66,25 @@ type UserService interface {
 }
 
 type userService struct {
-	repo    user.UserRepository
-	authSvc auth.AuthService
-	logger  logger.Logger
+	repo       user.UserRepository
+	personRepo person.PersonRepository
+	authSvc    auth.AuthService
+	logger     logger.Logger
 }
 
-func NewUserService(repo user.UserRepository, authSvc auth.AuthService, l logger.Logger) UserService {
+func NewUserService(repo user.UserRepository, personRepo person.PersonRepository, authSvc auth.AuthService, l logger.Logger) UserService {
 	if l == nil {
 		l = logger.Get()
 	}
 	return &userService{
-		repo:    repo,
-		authSvc: authSvc,
-		logger:  l,
+		repo:       repo,
+		personRepo: personRepo,
+		authSvc:    authSvc,
+		logger:     l,
 	}
 }
 
-func (s *userService) Register(ctx context.Context, email, password string) (*RegisterResult, error) {
+func (s *userService) Register(ctx context.Context, email, password, inviteToken string) (*RegisterResult, error) {
 	// auto-generate username จาก local-part ของ email (ก่อน @)
 	username := strings.SplitN(email, "@", 2)[0]
 
@@ -85,30 +100,64 @@ func (s *userService) Register(ctx context.Context, email, password string) (*Re
 		return nil, custom_errors.New(409, custom_errors.ErrAlreadyExists, "อีเมลนี้ถูกใช้งานแล้ว")
 	}
 
-	// 3. Hash password
+	// 1b. ตรวจ username ซ้ำ
+	existingByUsername, err := s.repo.GetByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	if existingByUsername != nil {
+		s.logger.Warn("Registration rejected: username already in use", "username", username)
+		return nil, custom_errors.New(409, custom_errors.ErrAlreadyExists, "ชื่อผู้ใช้นี้ถูกใช้งานแล้ว")
+	}
+
+	// 2. Hash password
 	hashedPassword, err := s.authSvc.HashPassword(password)
 	if err != nil {
 		s.logger.Error("Failed to hash password", err)
 		return nil, custom_errors.NewInternalError("ไม่สามารถประมวลผล password ได้")
 	}
 
-	// 4. สร้าง User (สถานะ pending_verification รอยืนยันอีเมล)
+	// ─── Flow A: Invite Token (auto-link ทันที) ───────────────────────────────
+	// admin ส่ง invite link ที่มี token → คลิกแล้วสมัครได้เลย ระบบผูก Person ให้
+	if inviteToken != "" {
+		return s.registerWithInviteToken(ctx, email, username, hashedPassword, inviteToken)
+	}
+
+	// ─── Flow B: สมัครปกติ ────────────────────────────────────────────────────
+	// สร้าง Person ใหม่สำหรับ user นี้ (ไม่ต้องรอ confirm)
+	newPerson := &person.Person{
+		Name: username,
+		// InviteEmail ไม่ set — นี่คือ self-registered Person ของ user เอง
+	}
+	if err := s.personRepo.Create(ctx, newPerson); err != nil {
+		s.logger.Error("Failed to create person record", err, "username", username)
+		return nil, err
+	}
+
+	// 3. สร้าง User + link กับ Person ใหม่
 	newUser := &user.User{
+		PersonID: newPerson.ID,
 		Username: username,
 		Email:    email,
 		Status:   user.UserStatusPendingVerification,
 	}
-
 	if err := s.repo.Create(ctx, newUser); err != nil {
 		s.logger.Error("Failed to persist new user", err, "username", username)
 		return nil, err
 	}
 
-	// 5. สร้าง UserAuth แยก (local provider)
+	// Link person → user
+	if err := s.personRepo.LinkUser(ctx, newPerson.ID, newUser.ID); err != nil {
+		s.logger.Warn("Failed to link person to user", "personID", newPerson.ID, "userID", newUser.ID)
+	}
+	newPerson.LinkedUserID = &newUser.ID
+	newPerson.CreatedByUserID = newUser.ID
+
+	// 4. สร้าง UserAuth (local provider)
 	newAuth := &user.UserAuth{
 		UserID:     newUser.ID,
 		Provider:   user.AuthProviderLocal,
-		ProviderID: email, // สำหรับ local ใช้ email เป็น identifier
+		ProviderID: email,
 		Secret:     hashedPassword,
 	}
 	if err := s.repo.CreateAuth(ctx, newAuth); err != nil {
@@ -116,19 +165,139 @@ func (s *userService) Register(ctx context.Context, email, password string) (*Re
 		return nil, err
 	}
 
-	// 6. ออก token pair (auto-login หลังสมัคร)
-	tokenPair, err := s.authSvc.GenerateTokenPair(newUser.ID.String(), "user")
+	// 5. ออก token pair (auto-login หลังสมัคร)
+	tokenPair, err := s.authSvc.GenerateTokenPair(newUser.ID.String(), newPerson.ID.String(), newUser.Role)
 	if err != nil {
 		s.logger.Error("Failed to generate token pair", err, "userID", newUser.ID)
 		return nil, custom_errors.NewInternalError("ไม่สามารถออก Token ได้")
 	}
 
-	s.logger.Success("User registered successfully", "userID", newUser.ID)
+	result := &RegisterResult{User: newUser, TokenPair: tokenPair}
 
-	return &RegisterResult{
-		User:      newUser,
-		TokenPair: tokenPair,
-	}, nil
+	// 6. ตรวจ InviteEmail match — ถ้าเจอให้แนะนำ (ต้อง confirm เอง ไม่ auto-link)
+	matchedPerson, err := s.personRepo.GetByInviteEmail(ctx, email)
+	if err == nil && matchedPerson != nil && matchedPerson.LinkedUserID == nil {
+		result.ClaimSuggestion = &ClaimSuggestion{
+			PersonID: matchedPerson.ID.String(),
+			Name:     matchedPerson.Name,
+		}
+		s.logger.Info("InviteEmail match found — returning claim suggestion",
+			"personID", matchedPerson.ID, "userID", newUser.ID)
+	}
+
+	s.logger.Success("User registered successfully", "userID", newUser.ID, "personID", newPerson.ID)
+	return result, nil
+}
+
+// registerWithInviteToken — Flow A: invite link มี token → สมัครแล้ว auto-link Person ทันที
+func (s *userService) registerWithInviteToken(ctx context.Context, email, username, hashedPassword, token string) (*RegisterResult, error) {
+	// ค้นหา Person จาก token
+	targetPerson, err := s.personRepo.GetByInviteToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	if targetPerson == nil {
+		return nil, custom_errors.New(400, custom_errors.ErrNotFound, "invite link ไม่ถูกต้อง")
+	}
+	if targetPerson.InviteTokenExpiresAt != nil && time.Now().After(*targetPerson.InviteTokenExpiresAt) {
+		return nil, custom_errors.New(400, "INVITE_TOKEN_EXPIRED", "invite link หมดอายุแล้ว")
+	}
+	if targetPerson.LinkedUserID != nil {
+		return nil, custom_errors.New(409, "INVITE_ALREADY_USED", "invite link นี้ถูกใช้ไปแล้ว")
+	}
+
+	// สร้าง User โดยผูก PersonID กับ pre-existing Person ทันที
+	newUser := &user.User{
+		PersonID: targetPerson.ID,
+		Username: username,
+		Email:    email,
+		Role:     user.UserRoleUser,
+		Status:   user.UserStatusPendingVerification,
+	}
+	if err := s.repo.Create(ctx, newUser); err != nil {
+		s.logger.Error("Failed to persist user (invite flow)", err)
+		return nil, err
+	}
+
+	// Link + clear token
+	if err := s.personRepo.LinkUser(ctx, targetPerson.ID, newUser.ID); err != nil {
+		s.logger.Error("Failed to link person to user (invite flow)", err, "personID", targetPerson.ID)
+		return nil, custom_errors.NewInternalError("ไม่สามารถผูก Person กับ User ได้")
+	}
+	if err := s.personRepo.ClearInviteToken(ctx, targetPerson.ID); err != nil {
+		s.logger.Error("Failed to clear invite token", err, "personID", targetPerson.ID)
+		return nil, custom_errors.NewInternalError("ไม่สามารถล้าง Invite Token ได้")
+	}
+
+	newAuth := &user.UserAuth{
+		UserID:     newUser.ID,
+		Provider:   user.AuthProviderLocal,
+		ProviderID: email,
+		Secret:     hashedPassword,
+	}
+	if err := s.repo.CreateAuth(ctx, newAuth); err != nil {
+		s.logger.Error("Failed to persist user auth (invite flow)", err)
+		return nil, err
+	}
+
+	tokenPair, err := s.authSvc.GenerateTokenPair(newUser.ID.String(), targetPerson.ID.String(), newUser.Role)
+	if err != nil {
+		return nil, custom_errors.NewInternalError("ไม่สามารถออก Token ได้")
+	}
+
+	s.logger.Success("User registered via invite token", "userID", newUser.ID, "personID", targetPerson.ID)
+	return &RegisterResult{User: newUser, TokenPair: tokenPair}, nil
+}
+
+// ClaimPerson — user ยืนยันว่าต้องการผูก Person ที่ระบบ suggest
+// ตรวจสอบ InviteEmail ก่อน เพื่อป้องกันการ claim Person ของคนอื่น
+func (s *userService) ClaimPerson(ctx context.Context, userID, personID uuid.UUID) error {
+	// ดึงข้อมูล user
+	u, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// ดึง Person ที่ต้องการ claim
+	targetPerson, err := s.personRepo.GetByID(ctx, personID)
+	if err != nil {
+		return err
+	}
+	if targetPerson == nil {
+		return custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบ Person ที่ระบุ")
+	}
+
+	// ตรวจสอบ: InviteEmail ต้องตรงกับ email ของ user (ป้องกัน claim Person ของคนอื่น)
+	if targetPerson.InviteEmail == nil || *targetPerson.InviteEmail != u.Email {
+		return custom_errors.New(403, custom_errors.ErrForbidden, "คุณไม่มีสิทธิ์ claim Person นี้")
+	}
+
+	// ตรวจสอบ: Person ต้องยังไม่มีเจ้าของ
+	if targetPerson.LinkedUserID != nil {
+		return custom_errors.New(409, "PERSON_ALREADY_CLAIMED", "Person นี้ถูก claim ไปแล้ว")
+	}
+
+	// เก็บ old Person ID ก่อน swap (Person ที่สร้างตอน Register)
+	oldPersonID := u.PersonID
+
+	// Swap: User.PersonID → targetPerson, targetPerson.LinkedUserID → User
+	if err := s.repo.UpdatePersonID(ctx, userID, personID); err != nil {
+		return err
+	}
+	if err := s.personRepo.LinkUser(ctx, personID, userID); err != nil {
+		return err
+	}
+
+	// Soft-delete old Person (สร้างตอน Register — ยังว่างอยู่)
+	if oldPersonID != personID {
+		if err := s.personRepo.Delete(ctx, oldPersonID); err != nil {
+			// best-effort: log แล้วผ่าน ไม่ block การ claim
+			s.logger.Warn("Failed to delete old person after claim", "oldPersonID", oldPersonID)
+		}
+	}
+
+	s.logger.Success("Person claimed successfully", "userID", userID, "personID", personID)
+	return nil
 }
 
 func (s *userService) Login(ctx context.Context, email, password string) (*RegisterResult, error) {
@@ -158,7 +327,7 @@ func (s *userService) Login(ctx context.Context, email, password string) (*Regis
 	}
 
 	// 4. ออก token pair
-	tokenPair, err := s.authSvc.GenerateTokenPair(u.ID.String(), "user")
+	tokenPair, err := s.authSvc.GenerateTokenPair(u.ID.String(), u.PersonID.String(), u.Role)
 	if err != nil {
 		s.logger.Error("Failed to generate token pair on login", err, "userID", u.ID)
 		return nil, custom_errors.NewInternalError("ไม่สามารถออก Token ได้")

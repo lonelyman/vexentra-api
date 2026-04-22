@@ -21,17 +21,6 @@ func NewSocialPlatformRepository(db *gorm.DB, l logger.Logger) socialplatform.So
 	return &socialPlatformRepository{db: db, logger: l}
 }
 
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&socialPlatformModel{})
-}
-
-func ResetTable(db *gorm.DB) error {
-	if err := db.Migrator().DropTable(&socialPlatformModel{}); err != nil {
-		return err
-	}
-	return AutoMigrate(db)
-}
-
 func (r *socialPlatformRepository) List(ctx context.Context) ([]*socialplatform.SocialPlatform, error) {
 	var models []socialPlatformModel
 	if err := r.db.WithContext(ctx).
@@ -45,6 +34,26 @@ func (r *socialPlatformRepository) List(ctx context.Context) ([]*socialplatform.
 		result[i] = models[i].ToEntity()
 	}
 	return result, nil
+}
+
+func (r *socialPlatformRepository) ListOffset(ctx context.Context, limit, offset int) ([]*socialplatform.SocialPlatform, int64, error) {
+	var models []socialPlatformModel
+	var total int64
+
+	db := r.db.WithContext(ctx).Model(&socialPlatformModel{})
+	if err := db.Count(&total).Error; err != nil {
+		r.logger.Error("DB_COUNT_SOCIAL_PLATFORMS_ERROR", err)
+		return nil, 0, err
+	}
+	if err := db.Order("sort_order ASC, name ASC").Limit(limit).Offset(offset).Find(&models).Error; err != nil {
+		r.logger.Error("DB_LIST_SOCIAL_PLATFORMS_OFFSET_ERROR", err)
+		return nil, 0, err
+	}
+	result := make([]*socialplatform.SocialPlatform, len(models))
+	for i := range models {
+		result[i] = models[i].ToEntity()
+	}
+	return result, total, nil
 }
 
 func (r *socialPlatformRepository) GetByID(ctx context.Context, id uuid.UUID) (*socialplatform.SocialPlatform, error) {

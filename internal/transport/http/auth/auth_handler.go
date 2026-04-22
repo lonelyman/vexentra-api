@@ -17,10 +17,11 @@ type AuthHandler struct {
 	userSvc  usersvc.UserService
 	authSvc  auth.AuthService
 	validate *validator.Validate
+	isDev    bool
 	logger   logger.Logger
 }
 
-func NewAuthHandler(userSvc usersvc.UserService, authSvc auth.AuthService, l logger.Logger) *AuthHandler {
+func NewAuthHandler(userSvc usersvc.UserService, authSvc auth.AuthService, env string, l logger.Logger) *AuthHandler {
 	if l == nil {
 		l = logger.Get()
 	}
@@ -28,6 +29,7 @@ func NewAuthHandler(userSvc usersvc.UserService, authSvc auth.AuthService, l log
 		userSvc:  userSvc,
 		authSvc:  authSvc,
 		validate: validation.New(),
+		isDev:    env != "production",
 		logger:   l,
 	}
 }
@@ -56,7 +58,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	return presenter.RenderItem(c, LoginResponse{
 		UserID:       result.User.ID.String(),
 		Email:        result.User.Email,
-		Role:         "user",
+		Role:         result.User.Role,
 		AccessToken:  result.TokenPair.AccessToken,
 		RefreshToken: result.TokenPair.RefreshToken,
 	})
@@ -83,8 +85,8 @@ func (h *AuthHandler) RefreshToken(c fiber.Ctx) error {
 		return custom_errors.New(401, custom_errors.ErrUnauthorized, "Refresh Token ไม่ถูกต้องหรือหมดอายุ")
 	}
 
-	// Issue a new token pair with the same userID
-	tokenPair, err := h.authSvc.GenerateTokenPair(claims.GetUserID(), "user")
+	// Issue a new token pair with the same userID + personID
+	tokenPair, err := h.authSvc.GenerateTokenPair(claims.GetUserID(), claims.GetPersonID(), "user")
 	if err != nil {
 		h.logger.Error("Failed to generate token pair on refresh", err)
 		return custom_errors.NewInternalError("ไม่สามารถออก Token ใหม่ได้")
@@ -148,12 +150,11 @@ func (h *AuthHandler) ResendVerifyEmail(c fiber.Ctx) error {
 		return presenter.RenderError(c, svcErr)
 	}
 	h.logger.Info("Verification email resent", "userID", userID)
-	// In production: send email and return generic success
-	// In development: return token directly for testing convenience
-	return presenter.RenderItem(c, fiber.Map{
-		"message": "ส่งอีเมลยืนยันใหม่แล้ว",
-		"token":   token, // TODO: remove in production; send via email instead
-	})
+	resp := fiber.Map{"message": "ส่งอีเมลยืนยันใหม่แล้ว"}
+	if h.isDev {
+		resp["token"] = token // dev only: ใช้ทดสอบเป็น email flow แทน email service จริง
+	}
+	return presenter.RenderItem(c, resp)
 }
 
 // ForgotPassword godoc
@@ -173,8 +174,8 @@ func (h *AuthHandler) ForgotPassword(c fiber.Ctx) error {
 	h.logger.Info("Forgot password requested", "email", req.Email)
 	// Always return success to prevent user enumeration
 	resp := fiber.Map{"message": "หากอีเมลนี้มีในระบบ คุณจะได้รับลิงก์รีเซ็ตรหัสผ่าน"}
-	if token != "" {
-		resp["token"] = token // TODO: remove in production; send via email instead
+	if h.isDev && token != "" {
+		resp["token"] = token // dev only: ใช้ทดสอบเป็น reset flow แทน email service จริง
 	}
 	return presenter.RenderItem(c, resp)
 }

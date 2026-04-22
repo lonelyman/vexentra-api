@@ -23,6 +23,6 @@ type ForgotPasswordRequest struct {
 
 // ResetPasswordRequest is the request body for POST /api/v1/auth/reset-password.
 type ResetPasswordRequest struct {
-	Token       string `json:"token"        validate:"required"         vmsg:"required:กรุณาระบุ token"`
-	NewPassword string `json:"new_password" validate:"required,min=8"   vmsg:"required:กรุณาระบุรหัสผ่านใหม่,min:รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"`
+	Token       string `json:"token"        validate:"required"                  vmsg:"required:กรุณาระบุ token"`
+	NewPassword string `json:"new_password" validate:"required,strong_password" vmsg:"required:กรุณาระบุรหัสผ่านใหม่"`
 }

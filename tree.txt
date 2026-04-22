@@ -11,7 +11,15 @@
 │   ├── adapters
 │   │   └── database
 │   │       └── postgres
+│   │           ├── pgperson
+│   │           │   ├── pg_person_model.go
+│   │           │   └── pg_person_repository.go
+│   │           ├── pgsocialplatform
+│   │           │   ├── pg_platform_model.go
+│   │           │   └── pg_platform_repository.go
 │   │           └── pguser
+│   │               ├── pg_profile_model.go
+│   │               ├── pg_profile_repository.go
 │   │               ├── pg_user_model.go
 │   │               └── pg_user_repository.go
 │   ├── bootstrap
@@ -22,10 +30,21 @@
 │   ├── config
 │   │   └── config.go
 │   ├── modules
+│   │   ├── person
+│   │   │   ├── person_entity.go
+│   │   │   └── person_repository.go
+│   │   ├── socialplatform
+│   │   │   ├── platform_entity.go
+│   │   │   ├── platform_repository.go
+│   │   │   └── platformsvc
+│   │   │       └── platform_service.go
 │   │   └── user
+│   │       ├── profile_entity.go
+│   │       ├── profile_repository.go
 │   │       ├── user_entity.go
 │   │       ├── user_repository.go
 │   │       └── usersvc
+│   │           ├── profile_service.go
 │   │           └── user_service.go
 │   └── transport
 │       └── http
@@ -41,7 +60,14 @@
 │           ├── presenter
 │           │   └── presenter.go
 │           ├── router.go
+│           ├── socialplatform
+│           │   ├── platform_handler.go
+│           │   ├── platform_request.go
+│           │   └── platform_response.go
 │           └── user
+│               ├── profile_handler.go
+│               ├── profile_request.go
+│               ├── profile_response.go
 │               ├── user_handler.go
 │               ├── user_request.go
 │               └── user_response.go
@@ -55,9 +81,11 @@
 │   │   └── logger.go
 │   └── validation
 │       └── validator.go
+├── portfolio-v2.html
+├── portfolio.html
 ├── tmp
 │   ├── build-errors.log
 │   └── main
 └── tree.txt
 
-26 directories, 35 files
+32 directories, 57 files

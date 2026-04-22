@@ -12,7 +12,7 @@ type UpsertProfileRequest struct {
 	Headline    string `json:"headline"`
 	Bio         string `json:"bio"`
 	Location    string `json:"location"`
-	AvatarURL   string `json:"avatar_url"`
+	AvatarURL   string `json:"avatar_url" validate:"omitempty,url"`
 }
 
 // UpsertSocialLinkRequest is the body for PUT /api/v1/me/social-links/:platform.
@@ -63,9 +63,9 @@ type AddPortfolioItemRequest struct {
 	Summary         string     `json:"summary"`
 	Description     string     `json:"description"`
 	ContentMarkdown string     `json:"content_markdown"`
-	CoverImageURL   string     `json:"cover_image_url"`
-	DemoURL         string     `json:"demo_url"`
-	SourceURL       string     `json:"source_url"`
+	CoverImageURL   string     `json:"cover_image_url" validate:"omitempty,url"`
+	DemoURL         string     `json:"demo_url"        validate:"omitempty,url"`
+	SourceURL       string     `json:"source_url"      validate:"omitempty,url"`
 	Status          string     `json:"status"          validate:"omitempty,oneof=draft published"`
 	Featured        bool       `json:"featured"`
 	SortOrder       int        `json:"sort_order"`

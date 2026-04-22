@@ -9,24 +9,25 @@ Go REST API built with Clean Architecture, designed for production from day one.
 | Layer      | Technology                                         |
 | ---------- | -------------------------------------------------- |
 | Framework  | Fiber v3                                           |
-| Database   | PostgreSQL + GORM                                  |
+| Database   | PostgreSQL 18 + GORM (query only)                  |
+| Migrations | goose (SQL, timestamp-versioned)                   |
 | Cache      | Redis                                              |
 | Auth       | JWT (HS256) — Access + Refresh Token               |
 | Logger     | slog (JSON production / PrettyHandler development) |
 | Validation | go-playground/validator v10                        |
 | Container  | Docker + Docker Compose                            |
 
+> **Schema is managed by SQL migrations only.** GORM `AutoMigrate` has been removed —
+> structural changes must go through `database/migrations/*.sql` (goose). GORM is used
+> strictly as a query builder / ORM.
+
 ---
 
 ## Quick Start
 
 ```bash
-# Clone and enter
 git clone git@github.com:lonelyman/vexentra-api.git && cd vexentra-api
-
-# Start all services (PostgreSQL, Redis, API)
 docker compose up --build
-
 # API available at http://localhost:8000
 ```
 
@@ -40,6 +41,7 @@ API_ENV=development
 API_PORT=3000
 API_TIMEZONE=Asia/Bangkok
 API_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+APP_SHOWCASE_PERSON_ID=          # optional: Person UUID for public showcase endpoint
 
 # PostgreSQL
 POSTGRES_PRIMARY_HOST=vexentra-pgsql
@@ -68,30 +70,114 @@ JWT_ISSUER=vexentra-api
 ## Project Structure
 
 ```
-cmd/api/                                 # Entrypoint
+cmd/api/
+database/
+  migrations/                   # goose SQL migrations (source of truth for schema)
+  backups/                      # pg_dump snapshots (pre-migration safety)
 internal/
-  bootstrap/                             # DI wiring — DB, Redis, services, handlers
-  config/                                # Config struct + env loader (Fail-Fast)
+  bootstrap/                    # DI wiring (no AutoMigrate — goose-only)
+  config/                       # Env loader (Fail-Fast)
   modules/
-    user/                                # User + Profile domain entities + repo interfaces
-      usersvc/                           # UserService + ProfileService
-    socialplatform/                      # SocialPlatform master data entity + repo interface
-      platformsvc/                       # SocialPlatformService
+    person/                     # Person entity + repo interface  ← identity หลัก
+    user/                       # User + Profile entities + repo interfaces
+      usersvc/                  # UserService + ProfileService
+    socialplatform/             # SocialPlatform master data
+      platformsvc/
   adapters/database/postgres/
-    pguser/                              # users, profiles, social_links, skills, experiences, portfolio tables
-    pgsocialplatform/                    # social_platforms table
+    pgperson/                   # persons table
+    pguser/                     # users, profiles, skills, experiences, portfolio, social_links
+    pgsocialplatform/           # social_platforms table
   transport/http/
-    auth/                                # Auth handlers (login, refresh, logout, verify, reset)
-    user/                                # User + Profile handlers
-    socialplatform/                      # Social platform master data handlers
-    health/                              # /health/* probes
-    middlewares/                         # AuthMiddleware, StructuredLogger
-    presenter/                           # Response envelope (RenderItem / RenderList / RenderError)
+    auth/                       # Auth handlers
+    user/                       # User + Profile handlers
+    socialplatform/             # Social platform handlers
+    health/                     # /health/* probes
+    middlewares/                # AuthMiddleware, StructuredLogger
+    presenter/                  # RenderItem / RenderList / RenderError
 pkg/
-  auth/                                  # JWT AuthService, Claims, GetClaims helper
-  custom_errors/                         # AppError + standard error codes
-  logger/                                # Logger interface + handlers
+  auth/                         # JWT AuthService, Claims (AccessClaims + RefreshClaims)
+  custom_errors/
+  logger/
 ```
+
+---
+
+## Database Migrations
+
+Schema lives under `database/migrations/` and is applied with
+[goose](https://github.com/pressly/goose). Filenames use timestamp format
+`YYYYMMDDHHMMSS_name.sql` (goose rejects version `0`).
+
+Applied migrations (as of 2026-04-22):
+
+| Version           | Name                    | Purpose                                                         |
+| ----------------- | ----------------------- | --------------------------------------------------------------- |
+| 20260422000001    | baseline                | Snapshot of GORM-managed schema (idempotent `CREATE IF NOT EXISTS`) |
+| 20260422000002    | schema_hardening        | deleted_at on all tables, case-insensitive unique indexes, FK fixes, phantom-person backfill |
+| 20260422000003    | project_management      | projects, project_members, transaction_categories, project_transactions (+ enums, seeds, CHECK constraints) |
+
+**Workflow:**
+
+```bash
+# status
+goose -dir database/migrations postgres "$DSN" status
+
+# apply
+goose -dir database/migrations postgres "$DSN" up
+
+# new migration
+goose -dir database/migrations create <name> sql
+```
+
+Always back up before applying to non-empty databases — see `database/backups/`.
+
+---
+
+## Data Model (สำคัญ)
+
+ระบบแยก **Person** ออกจาก **User** เพื่อรองรับการเพิ่มบุคคลในโครงการโดยที่เขาไม่ต้องมี account
+
+```
+persons                          ← identity หลัก (ชื่อ, bio, skill, portfolio ผูกที่นี่)
+  id, name, email (nullable)
+  linked_user_id (nullable FK → users.id)  ← claim ได้ถ้าสมัครทีหลัง
+  created_by_user_id FK → users.id
+
+users                            ← auth account เฉพาะคนที่ login ได้
+  id, person_id FK → persons.id
+  email, username, status
+
+profiles, skills, experiences,   ← ผูกกับ person_id ทั้งหมด
+portfolio_items, social_links
+```
+
+**ตอน Register:** ระบบสร้าง `Person` → สร้าง `User` → link กัน → ออก JWT ที่มีทั้ง `user_id` + `person_id`
+
+### Project Management (migration 003 — ยังไม่มี HTTP routes)
+
+```
+projects                         ← โครงการ (single-tenant, code = PREFIX-YYYY-NNNN)
+  id, project_code, name, status, closure_reason, closed_at,
+  client_person_id FK → persons.id, ...
+
+project_members                  ← สมาชิกในโครงการ (flat + is_lead, at-most-one lead)
+  project_id, person_id, is_lead, added_by_user_id, created_at, deleted_at
+  (joined = created_at; left = deleted_at — ไม่มี role/joined_at/left_at แยก)
+
+transaction_categories           ← master data (12 seeds: 4 income + 8 expense)
+  key, name, kind (income|expense), icon_key, is_system
+
+project_transactions             ← รายรับ/รายจ่ายต่อ project
+  project_id, category_id, kind, amount NUMERIC(15,2), occurred_at, ...
+```
+
+Key guarantees (CHECK constraints):
+
+- `project_code` ต้องตรง `^[A-Z]+-[0-9]{4}-[0-9]{4}$`
+- ถ้า `status = 'closed'` ต้องมีทั้ง `closed_at` + `closure_reason`
+- ถ้า `status ∈ (active, on_hold, closed)` ต้องมี `client_person_id`
+
+**User role** ได้ถูกย้ายจาก `user` → `member` พร้อม CHECK constraint (`admin | manager | member`).
 
 ---
 
@@ -142,18 +228,13 @@ Base URL: `http://localhost:8000`
 **POST /api/v1/auth/login**
 
 ```json
-{
-   "email": "nipon@example.com",
-   "password": "MyPassword123!"
-}
+{ "email": "nipon@example.com", "password": "MyPassword123!" }
 ```
 
 **POST /api/v1/auth/refresh**
 
 ```json
-{
-   "refresh_token": "<refresh_token>"
-}
+{ "refresh_token": "<refresh_token>" }
 ```
 
 **GET /api/v1/auth/verify-email**
@@ -165,18 +246,13 @@ GET /api/v1/auth/verify-email?token=abc123def456...
 **POST /api/v1/auth/forgot-password**
 
 ```json
-{
-   "email": "nipon@example.com"
-}
+{ "email": "nipon@example.com" }
 ```
 
 **POST /api/v1/auth/reset-password**
 
 ```json
-{
-   "token": "abc123def456...",
-   "new_password": "NewPassword456!"
-}
+{ "token": "abc123def456...", "new_password": "NewPassword456!" }
 ```
 
 </details>
@@ -185,12 +261,14 @@ GET /api/v1/auth/verify-email?token=abc123def456...
 
 ### Me (ข้อมูลตัวเอง)
 
+> ทุก route ทำงานบน **person_id** ที่อยู่ใน JWT token (ไม่ใช่ user_id)
+
 | Method | Path                                  | Auth   | Description                                 |
 | ------ | ------------------------------------- | ------ | ------------------------------------------- |
-| GET    | `/api/v1/me`                          | Bearer | ดูข้อมูล user ตัวเอง                        |
+| GET    | `/api/v1/me`                          | Bearer | ดูข้อมูล user + person ตัวเอง               |
 | PUT    | `/api/v1/me/password`                 | Bearer | เปลี่ยนรหัสผ่าน                             |
 | PUT    | `/api/v1/me/profile`                  | Bearer | อัปเดต profile (display name, bio ฯลฯ)      |
-| GET    | `/api/v1/me/social-links`             | Bearer | ดูรายการ social links ของตัวเอง             |
+| GET    | `/api/v1/me/social-links`             | Bearer | ดูรายการ social links                       |
 | PUT    | `/api/v1/me/social-links/:platformID` | Bearer | เพิ่ม/อัปเดต social link (1 ต่อ 1 platform) |
 | DELETE | `/api/v1/me/social-links/:linkID`     | Bearer | ลบ social link                              |
 | POST   | `/api/v1/me/skills`                   | Bearer | เพิ่ม skill                                 |
@@ -208,10 +286,7 @@ GET /api/v1/auth/verify-email?token=abc123def456...
 **PUT /api/v1/me/password**
 
 ```json
-{
-   "current_password": "MyPassword123!",
-   "new_password": "NewPassword456!"
-}
+{ "current_password": "MyPassword123!", "new_password": "NewPassword456!" }
 ```
 
 **PUT /api/v1/me/profile**
@@ -233,25 +308,16 @@ PUT /api/v1/me/social-links/01957a12-...  (UUID จาก GET /api/v1/social-pla
 ```
 
 ```json
-{
-   "url": "https://github.com/lonelyman",
-   "sort_order": 1
-}
+{ "url": "https://github.com/lonelyman", "sort_order": 1 }
 ```
 
 **POST /api/v1/me/skills**
 
 ```json
-{
-   "name": "Go",
-   "category": "backend",
-   "proficiency": 5,
-   "sort_order": 1
-}
+{ "name": "Go", "category": "backend", "proficiency": 5, "sort_order": 1 }
 ```
 
-> `category`: `backend` | `frontend` | `devops` | `other`
-> `proficiency`: 1 (beginner) – 5 (expert)
+> `category`: `backend` | `frontend` | `devops` | `other` — `proficiency`: 1–5
 
 **POST /api/v1/me/experiences**
 
@@ -299,16 +365,9 @@ PUT /api/v1/me/social-links/01957a12-...  (UUID จาก GET /api/v1/social-pla
 <details>
 <summary>ตัวอย่าง Query Params</summary>
 
-**Offset Pagination**
-
 ```
 GET /api/v1/users?page=1&limit=10
-```
-
-**Cursor Pagination**
-
-```
-GET /api/v1/users?cursor=01957a12-xxxx-xxxx-xxxx-xxxxxxxxxxxx&limit=20
+GET /api/v1/users?cursor=01957a12-xxxx&limit=20
 ```
 
 </details>
@@ -317,10 +376,12 @@ GET /api/v1/users?cursor=01957a12-xxxx-xxxx-xxxx-xxxxxxxxxxxx&limit=20
 
 ### Public Profile
 
-| Method | Path                        | Auth   | Description                        |
-| ------ | --------------------------- | ------ | ---------------------------------- |
-| GET    | `/api/v1/showcase`          | —      | Profile สำเร็จรูป (showcase user)  |
-| GET    | `/api/v1/users/:id/profile` | Bearer | ดู full profile ของ user คนใดก็ได้ |
+> `:id` = **person_id** (UUID จาก `persons` table ไม่ใช่ user_id)
+
+| Method | Path                        | Auth   | Description                               |
+| ------ | --------------------------- | ------ | ----------------------------------------- |
+| GET    | `/api/v1/showcase`          | —      | Full profile ของ showcase person (public) |
+| GET    | `/api/v1/users/:id/profile` | Bearer | Full profile ของ person คนใดก็ได้         |
 
 <details>
 <summary>ตัวอย่าง</summary>
@@ -328,6 +389,8 @@ GET /api/v1/users?cursor=01957a12-xxxx-xxxx-xxxx-xxxxxxxxxxxx&limit=20
 ```
 GET /api/v1/users/01957a12-xxxx-xxxx-xxxx-xxxxxxxxxxxx/profile
 ```
+
+> `:id` คือ person_id ที่อยู่ใน JWT หรือได้จาก list users
 
 </details>
 
@@ -378,11 +441,13 @@ GET /api/v1/users/01957a12-xxxx-xxxx-xxxx-xxxxxxxxxxxx/profile
 Transport (HTTP) → Service (Business Logic) → Repository Interface → Adapter (DB)
 ```
 
-- **Domain entity** ไม่มี JSON tags — transport layer จัดการ serialization เพียงที่เดียว
+- **Person ≠ User** — Person คือ identity (profile/portfolio ผูกที่นี่), User คือ auth account
+- JWT AccessToken มีทั้ง `user_id` (sub) และ `person_id` — handlers ดึง personID จาก claims โดยตรง
+- **Domain entity** ไม่มี JSON tag — transport layer จัดการ serialization เพียงที่เดียว
 - **Repository interface** อยู่ใน domain module — dependency inversion
-- **Error handling** — `AppError` struct พร้อม HTTPStatus / Code / Message / Details
-- **JWT** — AccessClaims + RefreshClaims แยก struct (Token Confusion Attack prevention, RFC 8725)
 - **UUID v7** — time-sorted UUID สำหรับทุก primary key
+- **Soft delete** — ทุกตารางมี `deleted_at`; unique indexes ใช้ partial `WHERE deleted_at IS NULL`
+- **Schema = SQL migrations** — GORM ไม่มีสิทธิ์แก้โครงสร้างตาราง
 
 ---
 
@@ -398,3 +463,5 @@ Transport (HTTP) → Service (Business Logic) → Repository Interface → Adapt
 ## License
 
 Private — owned by Vexentra.
+
+---

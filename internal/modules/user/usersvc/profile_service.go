@@ -29,6 +29,8 @@ type ProfileService interface {
 	UpsertProfile(ctx context.Context, personID uuid.UUID, p *user.Profile) error
 	AdminUpsertProfile(ctx context.Context, userID uuid.UUID, p *user.Profile) error
 	AdminAddSkill(ctx context.Context, userID uuid.UUID, s *user.Skill) error
+	AdminUpdateSkill(ctx context.Context, userID, skillID uuid.UUID, s *user.Skill) error
+	AdminRemoveSkill(ctx context.Context, userID, skillID uuid.UUID) error
 	AdminAddExperience(ctx context.Context, userID uuid.UUID, e *user.Experience) error
 	AdminUpdateExperience(ctx context.Context, userID, expID uuid.UUID, e *user.Experience) error
 	AdminRemoveExperience(ctx context.Context, userID, expID uuid.UUID) error
@@ -37,6 +39,7 @@ type ProfileService interface {
 	AdminRemovePortfolioItem(ctx context.Context, userID, itemID uuid.UUID) error
 
 	AddSkill(ctx context.Context, personID uuid.UUID, s *user.Skill) error
+	UpdateSkill(ctx context.Context, skillID, personID uuid.UUID, s *user.Skill) error
 	RemoveSkill(ctx context.Context, skillID, personID uuid.UUID) error
 
 	AddExperience(ctx context.Context, personID uuid.UUID, e *user.Experience) error
@@ -129,6 +132,12 @@ func (s *profileService) UpsertProfile(ctx context.Context, personID uuid.UUID, 
 func (s *profileService) AddSkill(ctx context.Context, personID uuid.UUID, skill *user.Skill) error {
 	skill.PersonID = personID
 	return s.profileRepo.CreateSkill(ctx, skill)
+}
+
+func (s *profileService) UpdateSkill(ctx context.Context, skillID, personID uuid.UUID, skill *user.Skill) error {
+	skill.ID = skillID
+	skill.PersonID = personID
+	return s.profileRepo.UpdateSkill(ctx, skill)
 }
 
 func (s *profileService) RemoveSkill(ctx context.Context, skillID, personID uuid.UUID) error {
@@ -274,6 +283,24 @@ func (s *profileService) AdminAddSkill(ctx context.Context, userID uuid.UUID, sk
 	}
 	skill.PersonID = personID
 	return s.profileRepo.CreateSkill(ctx, skill)
+}
+
+func (s *profileService) AdminUpdateSkill(ctx context.Context, userID, skillID uuid.UUID, skill *user.Skill) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	skill.ID = skillID
+	skill.PersonID = personID
+	return s.profileRepo.UpdateSkill(ctx, skill)
+}
+
+func (s *profileService) AdminRemoveSkill(ctx context.Context, userID, skillID uuid.UUID) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return s.profileRepo.DeleteSkill(ctx, skillID, personID)
 }
 
 func (s *profileService) AdminAddExperience(ctx context.Context, userID uuid.UUID, e *user.Experience) error {

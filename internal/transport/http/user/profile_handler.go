@@ -155,6 +155,37 @@ func (h *ProfileHandler) AddSkill(c fiber.Ctx) error {
 	return presenter.RenderItem(c, toSkillResponse(s), fiber.StatusCreated)
 }
 
+// UpdateSkill — PUT /api/v1/me/skills/:skillID
+func (h *ProfileHandler) UpdateSkill(c fiber.Ctx) error {
+	personID, err := ownerPersonID(c)
+	if err != nil {
+		return presenter.RenderError(c, err)
+	}
+
+	skillID, parseErr := uuid.Parse(c.Params("skillID"))
+	if parseErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "skill ID ไม่ถูกต้อง"))
+	}
+
+	var req AddSkillRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+
+	s := &user.Skill{
+		Name:        req.Name,
+		Category:    req.Category,
+		Proficiency: req.Proficiency,
+		SortOrder:   req.SortOrder,
+	}
+
+	if svcErr := h.svc.UpdateSkill(c.Context(), skillID, personID, s); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toSkillResponse(s))
+}
+
 // AdminAddSkill — POST /api/v1/users/:id/skills (admin only)
 func (h *ProfileHandler) AdminAddSkill(c fiber.Ctx) error {
 	userID, parseErr := uuid.Parse(c.Params("id"))
@@ -182,6 +213,56 @@ func (h *ProfileHandler) AdminAddSkill(c fiber.Ctx) error {
 	}
 
 	return presenter.RenderItem(c, toSkillResponse(s), fiber.StatusCreated)
+}
+
+// AdminUpdateSkill — PUT /api/v1/users/:id/skills/:skillID (admin only)
+func (h *ProfileHandler) AdminUpdateSkill(c fiber.Ctx) error {
+	userID, parseUserErr := uuid.Parse(c.Params("id"))
+	if parseUserErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+	skillID, parseSkillErr := uuid.Parse(c.Params("skillID"))
+	if parseSkillErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "skill ID ไม่ถูกต้อง"))
+	}
+
+	var req AddSkillRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, &req); !vResult.IsValid {
+		return custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors)
+	}
+
+	s := &user.Skill{
+		Name:        req.Name,
+		Category:    req.Category,
+		Proficiency: req.Proficiency,
+		SortOrder:   req.SortOrder,
+	}
+
+	if svcErr := h.svc.AdminUpdateSkill(c.Context(), userID, skillID, s); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toSkillResponse(s))
+}
+
+// AdminRemoveSkill — DELETE /api/v1/users/:id/skills/:skillID (admin only)
+func (h *ProfileHandler) AdminRemoveSkill(c fiber.Ctx) error {
+	userID, parseUserErr := uuid.Parse(c.Params("id"))
+	if parseUserErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+	skillID, parseSkillErr := uuid.Parse(c.Params("skillID"))
+	if parseSkillErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "skill ID ไม่ถูกต้อง"))
+	}
+
+	if svcErr := h.svc.AdminRemoveSkill(c.Context(), userID, skillID); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // RemoveSkill — DELETE /api/v1/me/skills/:skillID

@@ -213,6 +213,27 @@ func (r *profileRepository) CreateSkill(ctx context.Context, s *user.Skill) erro
 	return nil
 }
 
+func (r *profileRepository) UpdateSkill(ctx context.Context, s *user.Skill) error {
+	updates := map[string]any{
+		"name":        s.Name,
+		"category":    s.Category,
+		"proficiency": s.Proficiency,
+		"sort_order":  s.SortOrder,
+	}
+	result := r.db.WithContext(ctx).
+		Model(&skillModel{}).
+		Where("id = ? AND person_id = ?", s.ID, s.PersonID).
+		Updates(updates)
+	if result.Error != nil {
+		r.logger.Error("DB_UPDATE_SKILL_ERROR", result.Error)
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return custom_errors.NewNotFoundError(custom_errors.ErrNotFound, "ไม่พบ skill")
+	}
+	return nil
+}
+
 func (r *profileRepository) DeleteSkill(ctx context.Context, skillID, personID uuid.UUID) error {
 	result := r.db.WithContext(ctx).
 		Where("id = ? AND person_id = ?", skillID, personID).

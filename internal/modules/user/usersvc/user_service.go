@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
+	"html"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"vexentra-api/pkg/auth"
 	"vexentra-api/pkg/custom_errors"
 	"vexentra-api/pkg/logger"
+	"vexentra-api/pkg/mailer"
 	"vexentra-api/pkg/wela"
 
 	"github.com/google/uuid"
@@ -79,10 +82,20 @@ type userService struct {
 	repo       user.UserRepository
 	personRepo person.PersonRepository
 	authSvc    auth.AuthService
+	mailer     mailer.Mailer
+	webBaseURL string
 	logger     logger.Logger
 }
 
-func NewUserService(db *gorm.DB, repo user.UserRepository, personRepo person.PersonRepository, authSvc auth.AuthService, l logger.Logger) UserService {
+func NewUserService(
+	db *gorm.DB,
+	repo user.UserRepository,
+	personRepo person.PersonRepository,
+	authSvc auth.AuthService,
+	m mailer.Mailer,
+	webBaseURL string,
+	l logger.Logger,
+) UserService {
 	if l == nil {
 		l = logger.Get()
 	}
@@ -91,6 +104,8 @@ func NewUserService(db *gorm.DB, repo user.UserRepository, personRepo person.Per
 		repo:       repo,
 		personRepo: personRepo,
 		authSvc:    authSvc,
+		mailer:     m,
+		webBaseURL: strings.TrimRight(webBaseURL, "/"),
 		logger:     l,
 	}
 }
@@ -450,7 +465,7 @@ func (s *userService) ResendVerifyEmail(ctx context.Context, userID uuid.UUID) (
 	if err := s.repo.SetEmailVerificationToken(ctx, userID, token, expiresAt); err != nil {
 		return "", err
 	}
-	// TODO: send email with verification link containing token
+	// TODO: send email verification link if needed
 	s.logger.Info("Email verification token generated", "userID", userID)
 	return token, nil
 }
@@ -477,7 +492,7 @@ func (s *userService) ForgotPassword(ctx context.Context, email string) (string,
 	if err := s.repo.SetPasswordResetToken(ctx, u.ID, token, expiresAt); err != nil {
 		return "", err
 	}
-	// TODO: send email with reset link containing token
+	s.sendResetPasswordEmailAsync(u.Email, token)
 	s.logger.Info("Password reset token generated", "userID", u.ID)
 	return token, nil
 }
@@ -645,4 +660,27 @@ func generateSecureToken() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func (s *userService) sendResetPasswordEmailAsync(toEmail, token string) {
+	if s.mailer == nil || !s.mailer.IsEnabled() {
+		s.logger.Warn("Mailer not configured. Skip sending reset password email", "email", toEmail)
+		return
+	}
+	resetLink := fmt.Sprintf("%s/reset-password?token=%s", s.webBaseURL, token)
+	subject := "รีเซ็ตรหัสผ่าน Vexentra"
+	body := fmt.Sprintf(`
+<div style="font-family: Arial, sans-serif; line-height:1.6; color:#111827">
+  <h2 style="margin-bottom:8px;">รีเซ็ตรหัสผ่าน</h2>
+  <p>มีคำขอรีเซ็ตรหัสผ่านสำหรับบัญชีของคุณ</p>
+  <p>กดลิงก์ด้านล่างเพื่อกำหนดรหัสผ่านใหม่ (ลิงก์มีอายุ 1 ชั่วโมง):</p>
+  <p><a href="%s" style="display:inline-block;padding:10px 14px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;">รีเซ็ตรหัสผ่าน</a></p>
+  <p>หากคุณไม่ได้เป็นผู้ขอรีเซ็ต สามารถละเว้นอีเมลนี้ได้</p>
+  <p style="margin-top:20px;color:#6b7280;font-size:12px;">%s</p>
+</div>`, html.EscapeString(resetLink), html.EscapeString(resetLink))
+	if err := s.mailer.Send(toEmail, subject, body); err != nil {
+		s.logger.Error("Failed to send reset password email", err, "email", toEmail)
+		return
+	}
+	s.logger.Info("Reset password email sent", "email", toEmail)
 }

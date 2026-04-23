@@ -20,6 +20,7 @@ type ProfileRepository interface {
 	// ── Skills ────────────────────────────────────────────────────────────
 	ListSkillsByPersonID(ctx context.Context, personID uuid.UUID) ([]*Skill, error)
 	CreateSkill(ctx context.Context, s *Skill) error
+	UpdateSkill(ctx context.Context, s *Skill) error
 	DeleteSkill(ctx context.Context, skillID, personID uuid.UUID) error
 
 	// ── Experiences ───────────────────────────────────────────────────────

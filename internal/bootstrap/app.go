@@ -31,6 +31,7 @@ import (
 	userhdl "vexentra-api/internal/transport/http/user"
 	"vexentra-api/pkg/auth"
 	"vexentra-api/pkg/logger"
+	"vexentra-api/pkg/mailer"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/redis/go-redis/v9"
@@ -67,6 +68,7 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 
 	// DI Section
 	authSvc := auth.NewAuthService(cfg.JWT)
+	mailerSvc := mailer.New(cfg.Mailer, l)
 	userRepo := pguser.NewUserRepository(db, l)
 	personRepo := pgperson.NewPersonRepository(db, l)
 	profileRepo := pguser.NewProfileRepository(db, l)
@@ -76,7 +78,15 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	txRepo := pgproject.NewProjectTransactionRepository(db, l)
 	categoryRepo := pgtxcategory.NewTransactionCategoryRepository(db, l)
 
-	userSvc := usersvc.NewUserService(db, userRepo, personRepo, authSvc, l)
+	userSvc := usersvc.NewUserService(
+		db,
+		userRepo,
+		personRepo,
+		authSvc,
+		mailerSvc,
+		cfg.App.WebBaseURL,
+		l,
+	)
 	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, socialPlatformRepo, l)
 	socialPlatformSvc := platformsvc.NewSocialPlatformService(socialPlatformRepo, l)
 	projectSvc := projectsvc.NewProjectService(db, projectRepo, memberRepo, cfg.App.ProjectCodePrefix, l)

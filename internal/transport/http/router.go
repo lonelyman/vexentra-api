@@ -66,6 +66,8 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Put("/users/:id/password", middlewares.RoleMiddleware("admin"), h.User.AdminSetPassword)
 	protected.Put("/users/:id/profile", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpsertProfile)
 	protected.Post("/users/:id/skills", middlewares.RoleMiddleware("admin"), h.Profile.AdminAddSkill)
+	protected.Put("/users/:id/skills/:skillID", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpdateSkill)
+	protected.Delete("/users/:id/skills/:skillID", middlewares.RoleMiddleware("admin"), h.Profile.AdminRemoveSkill)
 	protected.Post("/users/:id/experiences", middlewares.RoleMiddleware("admin"), h.Profile.AdminAddExperience)
 	protected.Put("/users/:id/experiences/:expID", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpdateExperience)
 	protected.Delete("/users/:id/experiences/:expID", middlewares.RoleMiddleware("admin"), h.Profile.AdminRemoveExperience)
@@ -85,6 +87,7 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Put("/me/profile", h.Profile.UpsertProfile)
 
 	protected.Post("/me/skills", h.Profile.AddSkill)
+	protected.Put("/me/skills/:skillID", h.Profile.UpdateSkill)
 	protected.Delete("/me/skills/:skillID", h.Profile.RemoveSkill)
 
 	protected.Post("/me/experiences", h.Profile.AddExperience)

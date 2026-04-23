@@ -13,6 +13,7 @@ import (
 type Config struct {
 	App      AppConfig
 	JWT      JWTConfig
+	Mailer   MailerConfig
 	Postgres PostgresDbs
 	Redis    RedisConfig
 }
@@ -21,6 +22,7 @@ type AppConfig struct {
 	Env                string
 	AppPort            string
 	Timezone           string
+	WebBaseURL         string   // base URL for frontend links used in email templates
 	CORSAllowedOrigins []string // comma-separated via API_CORS_ALLOWED_ORIGINS
 	ShowcasePersonID   string   // optional: fixed person ID for public showcase endpoint
 	ProjectCodePrefix  string   // uppercase alphabetic prefix for PREFIX-YYYY-NNNN project codes
@@ -53,6 +55,14 @@ type JWTConfig struct {
 	Issuer        string
 }
 
+type MailerConfig struct {
+	Host     string
+	Port     int
+	Name     string
+	Username string
+	Password string
+}
+
 type RedisConfig struct {
 	Host     string
 	Port     string
@@ -69,6 +79,7 @@ func LoadConfig() (*Config, error) {
 			Env:                mustGetEnv("API_ENV", &missingKeys),
 			AppPort:            mustGetEnv("API_PORT", &missingKeys),
 			Timezone:           getEnv("API_TIMEZONE", "Asia/Bangkok"),
+			WebBaseURL:         getEnv("APP_WEB_URL", "http://localhost:3005"),
 			CORSAllowedOrigins: getEnvAsSlice("API_CORS_ALLOWED_ORIGINS", nil),
 			ShowcasePersonID:   getEnv("APP_SHOWCASE_PERSON_ID", ""),
 			ProjectCodePrefix:  strings.ToUpper(getEnv("APP_PROJECT_CODE_PREFIX", "VX")),
@@ -89,6 +100,13 @@ func LoadConfig() (*Config, error) {
 			RefreshSecret: mustGetEnv("JWT_REFRESH_SECRET", &missingKeys),
 			RefreshExpiry: mustGetEnvAsDuration("JWT_REFRESH_EXPIRY", &missingKeys),
 			Issuer:        getEnv("JWT_ISSUER", "vexentra-api"),
+		},
+		Mailer: MailerConfig{
+			Host:     getEnv("MAILER_HOST", ""),
+			Port:     getEnvAsInt("MAILER_PORT", 587, &missingKeys),
+			Name:     getEnv("MAILER_NAME", "Vexentra"),
+			Username: getEnv("MAILER_USERNAME", ""),
+			Password: getEnv("MAILER_PASSWORD", ""),
 		},
 		Redis: RedisConfig{
 			Host:     mustGetEnv("REDIS_HOST", &missingKeys),

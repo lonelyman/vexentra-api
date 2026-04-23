@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"vexentra-api/internal/adapters/database/postgres/pgfile"
 	"vexentra-api/internal/adapters/database/postgres/pgperson"
 	"vexentra-api/internal/adapters/database/postgres/pgproject"
 	"vexentra-api/internal/adapters/database/postgres/pgsocialplatform"
@@ -15,6 +16,7 @@ import (
 	"vexentra-api/internal/adapters/database/postgres/pguser"
 	"vexentra-api/internal/config"
 	"vexentra-api/internal/modules/dashboard/dashboardsvc"
+	filesvc "vexentra-api/internal/modules/file/filesvc"
 	"vexentra-api/internal/modules/project/projectsvc"
 	"vexentra-api/internal/modules/socialplatform/platformsvc"
 	"vexentra-api/internal/modules/task/tasksvc"
@@ -23,6 +25,7 @@ import (
 	"vexentra-api/internal/transport/http"
 	authhdl "vexentra-api/internal/transport/http/auth"
 	dashboardhdl "vexentra-api/internal/transport/http/dashboard"
+	filehdl "vexentra-api/internal/transport/http/file"
 	healthhdl "vexentra-api/internal/transport/http/health"
 	projecthdl "vexentra-api/internal/transport/http/project"
 	socialplatformhdl "vexentra-api/internal/transport/http/socialplatform"
@@ -32,6 +35,7 @@ import (
 	"vexentra-api/pkg/auth"
 	"vexentra-api/pkg/logger"
 	"vexentra-api/pkg/mailer"
+	"vexentra-api/pkg/storage"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/redis/go-redis/v9"
@@ -74,6 +78,7 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	profileRepo := pguser.NewProfileRepository(db, l)
 	socialPlatformRepo := pgsocialplatform.NewSocialPlatformRepository(db, l)
 	projectRepo := pgproject.NewProjectRepository(db, l)
+	fileRepo := pgfile.NewRepository(db, l)
 	memberRepo := pgproject.NewProjectMemberRepository(db, l)
 	txRepo := pgproject.NewProjectTransactionRepository(db, l)
 	categoryRepo := pgtxcategory.NewTransactionCategoryRepository(db, l)
@@ -88,7 +93,16 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 		cfg.App.APIBaseURL,
 		l,
 	)
-	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, socialPlatformRepo, l)
+	objectStorage, err := storage.NewMinioStorage(cfg.Storage, l)
+	if err != nil {
+		return nil, err
+	}
+	if err := objectStorage.EnsureBucket(context.Background()); err != nil {
+		return nil, err
+	}
+
+	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, fileRepo, socialPlatformRepo, objectStorage, cfg.Storage.PresignTTL, l)
+	uploadSvc := filesvc.NewService(db, cfg.Storage, fileRepo, profileRepo, objectStorage, l)
 	socialPlatformSvc := platformsvc.NewSocialPlatformService(socialPlatformRepo, l)
 	projectSvc := projectsvc.NewProjectService(db, projectRepo, memberRepo, cfg.App.ProjectCodePrefix, l)
 	memberSvc := projectsvc.NewMemberService(projectSvc, memberRepo, l)
@@ -110,6 +124,7 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 	txCategoryHdl := txcategoryhdl.NewCategoryHandler(categorySvc, l)
 	dashboardHdl := dashboardhdl.NewDashboardHandler(dashboardSvc, l)
 	taskHdl := taskhdl.NewTaskHandler(taskSvc, l)
+	uploadHdl := filehdl.NewUploadHandler(uploadSvc, l)
 
 	http.SetupRouter(server, http.Handlers{
 		User:           userHdl,
@@ -123,6 +138,7 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 		TxCategory:     txCategoryHdl,
 		Dashboard:      dashboardHdl,
 		Task:           taskHdl,
+		Upload:         uploadHdl,
 		AuthSvc:        authSvc,
 	})
 

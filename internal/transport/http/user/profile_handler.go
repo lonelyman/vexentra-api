@@ -119,7 +119,6 @@ func (h *ProfileHandler) UpsertProfile(c fiber.Ctx) error {
 		Headline:    req.Headline,
 		Bio:         req.Bio,
 		Location:    req.Location,
-		AvatarURL:   req.AvatarURL,
 	}
 
 	if svcErr := h.svc.UpsertProfile(c.Context(), personID, p); svcErr != nil {
@@ -675,7 +674,6 @@ func (h *ProfileHandler) AdminUpsertProfile(c fiber.Ctx) error {
 		Headline:    req.Headline,
 		Bio:         req.Bio,
 		Location:    req.Location,
-		AvatarURL:   req.AvatarURL,
 	}
 	if svcErr := h.svc.AdminUpsertProfile(c.Context(), targetID, p); svcErr != nil {
 		return presenter.RenderError(c, svcErr)

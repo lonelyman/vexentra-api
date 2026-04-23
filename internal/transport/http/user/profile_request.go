@@ -12,7 +12,6 @@ type UpsertProfileRequest struct {
 	Headline    string `json:"headline"`
 	Bio         string `json:"bio"`
 	Location    string `json:"location"`
-	AvatarURL   string `json:"avatar_url" validate:"omitempty,url"`
 }
 
 // UpsertSocialLinkRequest is the body for PUT /api/v1/me/social-links/:platform.

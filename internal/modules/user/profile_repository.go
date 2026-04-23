@@ -4,13 +4,17 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // ProfileRepository handles all persistence operations for portfolio-related entities.
 type ProfileRepository interface {
+	WithTx(tx *gorm.DB) ProfileRepository
+
 	// ── Profile (1:1 with persons) ────────────────────────────────────────
 	GetProfileByPersonID(ctx context.Context, personID uuid.UUID) (*Profile, error)
 	UpsertProfile(ctx context.Context, p *Profile) error
+	SetProfileAvatarFileID(ctx context.Context, personID, fileID uuid.UUID) error
 
 	// ── Social Links (1:many via person_id) ──────────────────────────────
 	ListSocialLinks(ctx context.Context, personID uuid.UUID) ([]*SocialLink, error)

@@ -24,6 +24,10 @@ func NewProfileRepository(db *gorm.DB, l logger.Logger) user.ProfileRepository {
 	return &profileRepository{db: db, logger: l}
 }
 
+func (r *profileRepository) WithTx(tx *gorm.DB) user.ProfileRepository {
+	return &profileRepository{db: tx, logger: r.logger}
+}
+
 // ─────────────────────────────────────────────────────────────────────
 //  Profile
 // ─────────────────────────────────────────────────────────────────────
@@ -52,13 +56,13 @@ func (r *profileRepository) UpsertProfile(ctx context.Context, p *user.Profile) 
 		}
 		p.ID = id
 		m := &profileModel{
-			ID:          p.ID,
-			PersonID:    p.PersonID,
-			DisplayName: p.DisplayName,
-			Headline:    p.Headline,
-			Bio:         p.Bio,
-			Location:    p.Location,
-			AvatarURL:   p.AvatarURL,
+			ID:           p.ID,
+			PersonID:     p.PersonID,
+			DisplayName:  p.DisplayName,
+			Headline:     p.Headline,
+			Bio:          p.Bio,
+			Location:     p.Location,
+			AvatarFileID: p.AvatarFileID,
 		}
 		if createErr := r.db.WithContext(ctx).Create(m).Error; createErr != nil {
 			r.logger.Error("DB_CREATE_PROFILE_ERROR", createErr)
@@ -81,7 +85,6 @@ func (r *profileRepository) UpsertProfile(ctx context.Context, p *user.Profile) 
 		"headline":     p.Headline,
 		"bio":          p.Bio,
 		"location":     p.Location,
-		"avatar_url":   p.AvatarURL,
 	})
 	if result.Error != nil {
 		r.logger.Error("DB_UPDATE_PROFILE_ERROR", result.Error)
@@ -90,6 +93,26 @@ func (r *profileRepository) UpsertProfile(ctx context.Context, p *user.Profile) 
 	p.CreatedAt = existing.CreatedAt
 	p.UpdatedAt = existing.UpdatedAt
 	return nil
+}
+
+func (r *profileRepository) SetProfileAvatarFileID(ctx context.Context, personID, fileID uuid.UUID) error {
+	var existing profileModel
+	err := r.db.WithContext(ctx).Where("person_id = ?", personID).First(&existing).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		id, genErr := uuid.NewV7()
+		if genErr != nil {
+			return custom_errors.NewInternalError("ไม่สามารถสร้าง ID ได้")
+		}
+		return r.db.WithContext(ctx).Create(&profileModel{
+			ID:           id,
+			PersonID:     personID,
+			AvatarFileID: &fileID,
+		}).Error
+	}
+	if err != nil {
+		return err
+	}
+	return r.db.WithContext(ctx).Model(&existing).Update("avatar_file_id", fileID).Error
 }
 
 // ─────────────────────────────────────────────────────────────────────

@@ -144,6 +144,15 @@ curl http://192.168.1.100:11434/api/generate \
 
 ส่วนนี้ไว้ให้ AI ที่เข้ามาอ่าน repo เข้าใจสถานะระบบปัจจุบันทันที
 
+### AI Handoff Plan (ไฟล์อัปโหลด MinIO)
+
+- เอกสารแผนต่อเนื่องสำหรับ AI อยู่ที่:
+  - `docs/AI_HANDOFF_MINIO_PLAN_2026-04-23.md`
+- ใช้ไฟล์นี้เป็น source-of-truth สำหรับงานต่อเนื่องเรื่อง upload pipeline
+  - M1: presign/complete + profile image upload
+  - M2: worker/thumbnail + cleanup
+  - M3: CDN/imgproxy/Tus (ตามความจำเป็น)
+
 ### Migrations ล่าสุด (goose)
 
 - `20260423000006_project_status_master.sql`

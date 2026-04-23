@@ -3,11 +3,14 @@ package usersvc
 import (
 	"context"
 	"strings"
+	"time"
 
+	filemod "vexentra-api/internal/modules/file"
 	"vexentra-api/internal/modules/socialplatform"
 	"vexentra-api/internal/modules/user"
 	"vexentra-api/pkg/custom_errors"
 	"vexentra-api/pkg/logger"
+	"vexentra-api/pkg/storage"
 
 	"github.com/google/uuid"
 )
@@ -58,18 +61,32 @@ type ProfileService interface {
 type profileService struct {
 	userRepo           user.UserRepository
 	profileRepo        user.ProfileRepository
+	fileRepo           filemod.Repository
 	socialPlatformRepo socialplatform.SocialPlatformRepository
+	storage            storage.ObjectStorage
+	presignTTL         time.Duration
 	logger             logger.Logger
 }
 
-func NewProfileService(userRepo user.UserRepository, profileRepo user.ProfileRepository, socialPlatformRepo socialplatform.SocialPlatformRepository, l logger.Logger) ProfileService {
+func NewProfileService(
+	userRepo user.UserRepository,
+	profileRepo user.ProfileRepository,
+	fileRepo filemod.Repository,
+	socialPlatformRepo socialplatform.SocialPlatformRepository,
+	storage storage.ObjectStorage,
+	presignTTL time.Duration,
+	l logger.Logger,
+) ProfileService {
 	if l == nil {
 		l = logger.Get()
 	}
 	return &profileService{
 		userRepo:           userRepo,
 		profileRepo:        profileRepo,
+		fileRepo:           fileRepo,
 		socialPlatformRepo: socialPlatformRepo,
+		storage:            storage,
+		presignTTL:         presignTTL,
 		logger:             l,
 	}
 }
@@ -105,6 +122,13 @@ func (s *profileService) GetFullProfile(ctx context.Context, personID uuid.UUID,
 	}
 
 	if profile != nil {
+		if profile.AvatarFileID != nil {
+			if f, ferr := s.fileRepo.GetFileByID(ctx, *profile.AvatarFileID); ferr == nil && f != nil {
+				if signedURL, uerr := s.storage.PresignGet(ctx, f.ObjectKey, s.presignTTL); uerr == nil {
+					profile.AvatarURL = signedURL
+				}
+			}
+		}
 		links, err := s.profileRepo.ListSocialLinks(ctx, personID)
 		if err != nil {
 			return nil, err

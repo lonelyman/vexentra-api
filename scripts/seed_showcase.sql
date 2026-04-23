@@ -2,8 +2,8 @@
 INSERT INTO users (id, person_id, username, email, password_hash, created_at, updated_at) 
 VALUES (gen_random_uuid(), '019d71bd-1c2d-7a2c-a1d7-fd84416611f9', 'somchai', 'somchai@vexentra.co', 'hash', NOW(), NOW()) ON CONFLICT DO NOTHING;
 
-INSERT INTO profiles (person_id, display_name, headline, bio, location, avatar_url, created_at, updated_at) 
-VALUES ('019d71bd-1c2d-7a2c-a1d7-fd84416611f9', 'สมชาย วงษ์สวรรค์', 'Brand Designer & Creative Strategist', 'นักออกแบบแบรนด์ที่มีประสบการณ์กว่า 8 ปีในการสร้างอัตลักษณ์องค์กรให้กับธุรกิจ SME ถึงองค์กรขนาดใหญ่ เชื่อว่าการออกแบบที่ดีต้องสื่อเรื่องราว ไม่ใช่แค่ความสวยงาม', 'กรุงเทพฯ, ประเทศไทย', '🎨', NOW(), NOW()) ON CONFLICT DO NOTHING;
+INSERT INTO profiles (person_id, display_name, headline, bio, location, created_at, updated_at) 
+VALUES ('019d71bd-1c2d-7a2c-a1d7-fd84416611f9', 'สมชาย วงษ์สวรรค์', 'Brand Designer & Creative Strategist', 'นักออกแบบแบรนด์ที่มีประสบการณ์กว่า 8 ปีในการสร้างอัตลักษณ์องค์กรให้กับธุรกิจ SME ถึงองค์กรขนาดใหญ่ เชื่อว่าการออกแบบที่ดีต้องสื่อเรื่องราว ไม่ใช่แค่ความสวยงาม', 'กรุงเทพฯ, ประเทศไทย', NOW(), NOW()) ON CONFLICT DO NOTHING;
 
 -- Skills
 INSERT INTO skills (id, person_id, name, category, proficiency, sort_order) VALUES

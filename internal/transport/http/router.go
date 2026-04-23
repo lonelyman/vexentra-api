@@ -4,6 +4,7 @@ package http
 import (
 	authhdl "vexentra-api/internal/transport/http/auth"
 	dashboardhdl "vexentra-api/internal/transport/http/dashboard"
+	filehdl "vexentra-api/internal/transport/http/file"
 	healthhdl "vexentra-api/internal/transport/http/health"
 	"vexentra-api/internal/transport/http/middlewares"
 	projecthdl "vexentra-api/internal/transport/http/project"
@@ -28,6 +29,7 @@ type Handlers struct {
 	TxCategory     *txcategoryhdl.CategoryHandler
 	Dashboard      *dashboardhdl.DashboardHandler
 	Task           *taskhdl.TaskHandler
+	Upload         *filehdl.UploadHandler
 	AuthSvc        auth.AuthService
 }
 
@@ -83,6 +85,10 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	// Profile & Portfolio — view any user's full profile (login required)
 	protected.Get("/me/profile", h.Profile.GetMyProfile)
 	protected.Get("/users/:id/profile", h.Profile.GetPublicProfile)
+	protected.Post("/uploads/presign", h.Upload.Presign)
+	protected.Post("/uploads/complete", h.Upload.Complete)
+	protected.Get("/files/:id/url", h.Upload.GetFileURL)
+	protected.Delete("/files/:id", h.Upload.Delete)
 
 	// Self-service profile management
 	protected.Put("/me/profile", h.Profile.UpsertProfile)

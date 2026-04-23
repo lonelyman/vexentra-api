@@ -12,12 +12,13 @@ import (
 
 // ProfileResponse is the profile section of a user's public page.
 type ProfileResponse struct {
-	DisplayName string               `json:"display_name"`
-	Headline    string               `json:"headline"`
-	Bio         string               `json:"bio"`
-	Location    string               `json:"location"`
-	AvatarURL   string               `json:"avatar_url"`
-	SocialLinks []SocialLinkResponse `json:"social_links"`
+	DisplayName  string               `json:"display_name"`
+	Headline     string               `json:"headline"`
+	Bio          string               `json:"bio"`
+	Location     string               `json:"location"`
+	AvatarFileID *string              `json:"avatar_file_id,omitempty"`
+	AvatarURL    string               `json:"avatar_url"`
+	SocialLinks  []SocialLinkResponse `json:"social_links"`
 }
 
 // SocialLinkResponse represents a single social link.
@@ -108,13 +109,19 @@ func toProfileResponse(p *user.Profile) *ProfileResponse {
 			SortOrder:  l.SortOrder,
 		}
 	}
+	var avatarFileID *string
+	if p.AvatarFileID != nil {
+		id := p.AvatarFileID.String()
+		avatarFileID = &id
+	}
 	return &ProfileResponse{
-		DisplayName: p.DisplayName,
-		Headline:    p.Headline,
-		Bio:         p.Bio,
-		Location:    p.Location,
-		AvatarURL:   p.AvatarURL,
-		SocialLinks: links,
+		DisplayName:  p.DisplayName,
+		Headline:     p.Headline,
+		Bio:          p.Bio,
+		Location:     p.Location,
+		AvatarFileID: avatarFileID,
+		AvatarURL:    p.AvatarURL,
+		SocialLinks:  links,
 	}
 }
 

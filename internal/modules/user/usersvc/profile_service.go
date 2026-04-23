@@ -33,6 +33,8 @@ type ProfileService interface {
 	AdminUpdateExperience(ctx context.Context, userID, expID uuid.UUID, e *user.Experience) error
 	AdminRemoveExperience(ctx context.Context, userID, expID uuid.UUID) error
 	AdminAddPortfolioItem(ctx context.Context, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
+	AdminUpdatePortfolioItem(ctx context.Context, userID, itemID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
+	AdminRemovePortfolioItem(ctx context.Context, userID, itemID uuid.UUID) error
 
 	AddSkill(ctx context.Context, personID uuid.UUID, s *user.Skill) error
 	RemoveSkill(ctx context.Context, skillID, personID uuid.UUID) error
@@ -317,6 +319,36 @@ func (s *profileService) AdminAddPortfolioItem(ctx context.Context, userID uuid.
 		return err
 	}
 	return s.syncTags(ctx, item, tagNames)
+}
+
+func (s *profileService) AdminUpdatePortfolioItem(ctx context.Context, userID, itemID uuid.UUID, item *user.PortfolioItem, tagNames []string) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	item.ID = itemID
+	item.PersonID = personID
+	if item.Slug == "" {
+		item.Slug = slugify(item.Title)
+	}
+
+	if err := s.profileRepo.UpdatePortfolioItem(ctx, item); err != nil {
+		return err
+	}
+
+	if tagNames != nil {
+		return s.syncTags(ctx, item, tagNames)
+	}
+	return nil
+}
+
+func (s *profileService) AdminRemovePortfolioItem(ctx context.Context, userID, itemID uuid.UUID) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return s.profileRepo.DeletePortfolioItem(ctx, itemID, personID)
 }
 
 func (s *profileService) personIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {

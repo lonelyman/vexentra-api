@@ -172,6 +172,17 @@ goose -dir database/migrations postgres "$DSN" up
 goose -dir database/migrations create <name> sql
 ```
 
+หรือใช้ Makefile (แนะนำสำหรับทีม):
+
+```bash
+# run from vexentra-api/
+make migrate-status
+make migrate-up
+make migrate-down
+make migrate-version
+make migrate-create name=add_project_indexes
+```
+
 Always back up before applying to non-empty databases — see `database/backups/`.
 
 ---

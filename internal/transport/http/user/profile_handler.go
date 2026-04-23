@@ -49,6 +49,23 @@ func (h *ProfileHandler) GetShowcase(c fiber.Ctx) error {
 	return presenter.RenderItem(c, toFullProfileResponse(result))
 }
 
+// GetShowcaseByPersonID — GET /api/v1/showcase/:id
+// Public: returns the full profile for a specific person_id.
+// No login required; only published portfolio items are returned.
+func (h *ProfileHandler) GetShowcaseByPersonID(c fiber.Ctx) error {
+	targetID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "person ID ไม่ถูกต้อง"))
+	}
+
+	result, svcErr := h.svc.GetFullProfile(c.Context(), targetID, false)
+	if svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toFullProfileResponse(result))
+}
+
 // GetMyProfile — GET /api/v1/me/profile
 // Protected: returns the full profile of the currently authenticated user.
 func (h *ProfileHandler) GetMyProfile(c fiber.Ctx) error {
@@ -361,6 +378,52 @@ func (h *ProfileHandler) AdminAddPortfolioItem(c fiber.Ctx) error {
 	}
 
 	return presenter.RenderItem(c, toPortfolioItemResponse(item), fiber.StatusCreated)
+}
+
+// AdminUpdatePortfolioItem — PUT /api/v1/users/:id/portfolio/:itemID (admin only)
+func (h *ProfileHandler) AdminUpdatePortfolioItem(c fiber.Ctx) error {
+	userID, parseUserErr := uuid.Parse(c.Params("id"))
+	if parseUserErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+
+	itemID, parseItemErr := uuid.Parse(c.Params("itemID"))
+	if parseItemErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "portfolio item ID ไม่ถูกต้อง"))
+	}
+
+	var req AddPortfolioItemRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, &req); !vResult.IsValid {
+		return custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors)
+	}
+
+	item := req.ToEntity()
+	if svcErr := h.svc.AdminUpdatePortfolioItem(c.Context(), userID, itemID, item, req.Tags); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toPortfolioItemResponse(item))
+}
+
+// AdminRemovePortfolioItem — DELETE /api/v1/users/:id/portfolio/:itemID (admin only)
+func (h *ProfileHandler) AdminRemovePortfolioItem(c fiber.Ctx) error {
+	userID, parseUserErr := uuid.Parse(c.Params("id"))
+	if parseUserErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+
+	itemID, parseItemErr := uuid.Parse(c.Params("itemID"))
+	if parseItemErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "portfolio item ID ไม่ถูกต้อง"))
+	}
+
+	if svcErr := h.svc.AdminRemovePortfolioItem(c.Context(), userID, itemID); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // UpdatePortfolioItem — PUT /api/v1/me/portfolio/:itemID

@@ -50,6 +50,8 @@ func SetupRouter(app *fiber.App, h Handlers) {
 
 	// Showcase — no login required; returns profile of the pre-configured showcase user
 	api.Get("/showcase", h.Profile.GetShowcase)
+	// Public showcase by person_id (UUID)
+	api.Get("/showcase/:id", h.Profile.GetShowcaseByPersonID)
 
 	// Social Platforms — master data (public read)
 	api.Get("/social-platforms", h.SocialPlatform.List)
@@ -68,6 +70,8 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Put("/users/:id/experiences/:expID", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpdateExperience)
 	protected.Delete("/users/:id/experiences/:expID", middlewares.RoleMiddleware("admin"), h.Profile.AdminRemoveExperience)
 	protected.Post("/users/:id/portfolio", middlewares.RoleMiddleware("admin"), h.Profile.AdminAddPortfolioItem)
+	protected.Put("/users/:id/portfolio/:itemID", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpdatePortfolioItem)
+	protected.Delete("/users/:id/portfolio/:itemID", middlewares.RoleMiddleware("admin"), h.Profile.AdminRemovePortfolioItem)
 	protected.Post("/auth/logout", h.Auth.Logout)
 	protected.Post("/auth/resend-verify", h.Auth.ResendVerifyEmail)
 	protected.Put("/me/password", h.User.ChangePassword)

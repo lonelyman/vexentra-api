@@ -59,7 +59,7 @@ func (s *dashboardService) GetStats(ctx context.Context, caller user.Caller) (*d
 	}, nil
 }
 
-// ─── Status counts (non-closed projects only) ─────────────────────────────────
+// ─── Status counts (all project statuses) ─────────────────────────────────────
 
 func (s *dashboardService) queryStatusCounts(db *gorm.DB, nonStaff bool, pid uuid.UUID) ([]dashboard.StatusCount, error) {
 	type row struct {
@@ -75,14 +75,14 @@ func (s *dashboardService) queryStatusCounts(db *gorm.DB, nonStaff bool, pid uui
 			FROM projects p
 			JOIN project_members pm
 				ON pm.project_id = p.id AND pm.deleted_at IS NULL AND pm.person_id = ?
-			WHERE p.deleted_at IS NULL AND p.status != 'closed'
+			WHERE p.deleted_at IS NULL
 			GROUP BY p.status
 		`, pid).Scan(&rows).Error
 	} else {
 		err = db.Raw(`
 			SELECT status, COUNT(*) AS count
 			FROM projects
-			WHERE deleted_at IS NULL AND status != 'closed'
+			WHERE deleted_at IS NULL
 			GROUP BY status
 		`).Scan(&rows).Error
 	}

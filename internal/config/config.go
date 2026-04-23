@@ -68,6 +68,7 @@ type MailerConfig struct {
 type StorageConfig struct {
 	Provider            string
 	Endpoint            string
+	PublicBaseURL       string
 	AccessKey           string
 	SecretKey           string
 	Bucket              string
@@ -127,6 +128,7 @@ func LoadConfig() (*Config, error) {
 		Storage: StorageConfig{
 			Provider:            strings.ToLower(getEnv("STORAGE_PROVIDER", "minio")),
 			Endpoint:            getEnv("STORAGE_ENDPOINT", "vexentra-minio:9000"),
+			PublicBaseURL:       getEnv("STORAGE_PUBLIC_BASE_URL", "http://localhost:9000"),
 			AccessKey:           getEnv("STORAGE_ACCESS_KEY", "minioadmin"),
 			SecretKey:           getEnv("STORAGE_SECRET_KEY", "minioadmin"),
 			Bucket:              getEnv("STORAGE_BUCKET", "vexentra-assets"),

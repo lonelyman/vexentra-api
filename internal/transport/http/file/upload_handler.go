@@ -53,9 +53,9 @@ func (h *UploadHandler) Presign(c fiber.Ctx) error {
 		targetPersonID = &parsed
 	}
 
-	result, err := h.svc.PresignProfileImage(c.Context(), caller, req.Filename, req.MIMEType, req.SizeBytes, targetPersonID)
-	if err != nil {
-		return presenter.RenderError(c, err)
+	result, svcErr := h.svc.PresignProfileImage(c.Context(), caller, req.Filename, req.MIMEType, req.SizeBytes, targetPersonID)
+	if svcErr != nil {
+		return presenter.RenderError(c, svcErr)
 	}
 	return presenter.RenderItem(c, result, fiber.StatusCreated)
 }

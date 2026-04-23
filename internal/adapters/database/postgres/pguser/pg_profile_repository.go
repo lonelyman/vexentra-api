@@ -115,6 +115,12 @@ func (r *profileRepository) SetProfileAvatarFileID(ctx context.Context, personID
 	return r.db.WithContext(ctx).Model(&existing).Update("avatar_file_id", fileID).Error
 }
 
+func (r *profileRepository) ClearProfileAvatarFileID(ctx context.Context, personID, fileID uuid.UUID) error {
+	return r.db.WithContext(ctx).Model(&profileModel{}).
+		Where("person_id = ? AND avatar_file_id = ?", personID, fileID).
+		Update("avatar_file_id", nil).Error
+}
+
 // ─────────────────────────────────────────────────────────────────────
 //  Social Links
 // ─────────────────────────────────────────────────────────────────────

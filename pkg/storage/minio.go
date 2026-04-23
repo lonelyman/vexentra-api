@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"time"
 
 	"vexentra-api/internal/config"
@@ -14,10 +15,11 @@ import (
 )
 
 type minioStorage struct {
-	client *minio.Client
-	bucket string
-	region string
-	log    logger.Logger
+	client       *minio.Client
+	publicClient *minio.Client
+	bucket       string
+	region       string
+	log          logger.Logger
 }
 
 func NewMinioStorage(cfg config.StorageConfig, l logger.Logger) (ObjectStorage, error) {
@@ -29,11 +31,28 @@ func NewMinioStorage(cfg config.StorageConfig, l logger.Logger) (ObjectStorage, 
 	if err != nil {
 		return nil, err
 	}
+
+	var publicClient *minio.Client
+	if cfg.PublicBaseURL != "" {
+		publicURL, parseErr := url.Parse(cfg.PublicBaseURL)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		publicClient, err = minio.New(publicURL.Host, &minio.Options{
+			Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+			Secure: publicURL.Scheme == "https",
+			Region: cfg.Region,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &minioStorage{
-		client: client,
-		bucket: cfg.Bucket,
-		region: cfg.Region,
-		log:    l,
+		client:       client,
+		publicClient: publicClient,
+		bucket:       cfg.Bucket,
+		region:       cfg.Region,
+		log:          l,
 	}, nil
 }
 
@@ -68,7 +87,11 @@ func (s *minioStorage) PresignPut(ctx context.Context, objectKey, contentType st
 }
 
 func (s *minioStorage) PresignGet(ctx context.Context, objectKey string, expires time.Duration) (string, error) {
-	u, err := s.client.PresignedGetObject(ctx, s.bucket, objectKey, expires, nil)
+	signClient := s.client
+	if s.publicClient != nil {
+		signClient = s.publicClient
+	}
+	u, err := signClient.PresignedGetObject(ctx, s.bucket, objectKey, expires, nil)
 	if err != nil {
 		return "", err
 	}

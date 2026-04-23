@@ -68,7 +68,7 @@ func NewService(
 }
 
 func (s *service) PresignProfileImage(ctx context.Context, caller user.Caller, filename, mimeType string, sizeBytes int64, targetPersonID *uuid.UUID) (*PresignResult, *custom_errors.AppError) {
-	mimeType = strings.TrimSpace(strings.ToLower(mimeType))
+	mimeType = normalizeImageMIME(mimeType)
 	filename = strings.TrimSpace(filename)
 	if filename == "" {
 		filename = "upload"
@@ -264,6 +264,12 @@ func (s *service) DeleteFile(ctx context.Context, caller user.Caller, fileID uui
 	if err := s.repo.SoftDeleteFile(ctx, fileID); err != nil {
 		return custom_errors.NewInternalError("ลบข้อมูลไฟล์ไม่สำเร็จ")
 	}
+	if f.OwnerType == file.OwnerTypePerson && f.Category == file.CategoryProfileImage {
+		if err := s.profileRepo.ClearProfileAvatarFileID(ctx, f.OwnerID, f.ID); err != nil {
+			s.log.Error("CLEAR_PROFILE_AVATAR_FILE_ID_ERROR", err)
+			return custom_errors.NewInternalError("ลบการอ้างอิงรูปโปรไฟล์ไม่สำเร็จ")
+		}
+	}
 	_ = s.storage.RemoveObject(ctx, f.ObjectKey)
 	return nil
 }
@@ -304,11 +310,21 @@ func (s *service) detectObjectMIME(ctx context.Context, objectKey string) (strin
 }
 
 func isAllowedImageMIME(mime string) bool {
-	switch strings.TrimSpace(strings.ToLower(mime)) {
+	switch normalizeImageMIME(mime) {
 	case "image/jpeg", "image/png", "image/webp":
 		return true
 	default:
 		return false
+	}
+}
+
+func normalizeImageMIME(mime string) string {
+	v := strings.TrimSpace(strings.ToLower(mime))
+	switch v {
+	case "image/jpg":
+		return "image/jpeg"
+	default:
+		return v
 	}
 }
 

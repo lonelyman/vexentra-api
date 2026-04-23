@@ -15,6 +15,7 @@ type ProfileRepository interface {
 	GetProfileByPersonID(ctx context.Context, personID uuid.UUID) (*Profile, error)
 	UpsertProfile(ctx context.Context, p *Profile) error
 	SetProfileAvatarFileID(ctx context.Context, personID, fileID uuid.UUID) error
+	ClearProfileAvatarFileID(ctx context.Context, personID, fileID uuid.UUID) error
 
 	// ── Social Links (1:many via person_id) ──────────────────────────────
 	ListSocialLinks(ctx context.Context, personID uuid.UUID) ([]*SocialLink, error)

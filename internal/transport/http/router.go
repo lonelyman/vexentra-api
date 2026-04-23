@@ -63,6 +63,7 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Get("/users", middlewares.RoleMiddleware("admin"), h.User.ListUsers)
 	protected.Get("/users/:id", middlewares.RoleMiddleware("admin"), h.User.AdminGetUser)
 	protected.Patch("/users/:id", middlewares.RoleMiddleware("admin"), h.User.AdminUpdateUser)
+	protected.Post("/users/:id/resend-verify", middlewares.RoleMiddleware("admin"), h.User.AdminResendVerifyEmail)
 	protected.Put("/users/:id/password", middlewares.RoleMiddleware("admin"), h.User.AdminSetPassword)
 	protected.Put("/users/:id/profile", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpsertProfile)
 	protected.Post("/users/:id/skills", middlewares.RoleMiddleware("admin"), h.Profile.AdminAddSkill)

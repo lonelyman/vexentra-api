@@ -20,6 +20,9 @@ type userModel struct {
 	Role        string     `gorm:"size:20;column:role;not null;default:'user'"`
 	Status      string     `gorm:"size:30;column:status;not null;default:'pending_verification'"`
 	LastLoginAt *time.Time `gorm:"column:last_login_at"`
+	// Password policy
+	ForcePasswordChange bool       `gorm:"column:force_password_change;not null;default:false"`
+	PasswordChangedAt   *time.Time `gorm:"column:password_changed_at"`
 
 	// Email Verification
 	IsEmailVerified                 bool       `gorm:"column:is_email_verified;not null;default:false"`
@@ -46,16 +49,18 @@ func (m *userModel) ToEntity() *user.User {
 		deletedAt = &t
 	}
 	return &user.User{
-		ID:          m.ID,
-		PersonID:    m.PersonID,
-		Username:    m.Username,
-		Email:       m.Email,
-		Role:        m.Role,
-		Status:      m.Status,
-		LastLoginAt: m.LastLoginAt,
-		CreatedAt:   m.CreatedAt,
-		UpdatedAt:   m.UpdatedAt,
-		DeletedAt:   deletedAt,
+		ID:                  m.ID,
+		PersonID:            m.PersonID,
+		Username:            m.Username,
+		Email:               m.Email,
+		Role:                m.Role,
+		Status:              m.Status,
+		LastLoginAt:         m.LastLoginAt,
+		CreatedAt:           m.CreatedAt,
+		UpdatedAt:           m.UpdatedAt,
+		DeletedAt:           deletedAt,
+		ForcePasswordChange: m.ForcePasswordChange,
+		PasswordChangedAt:   m.PasswordChangedAt,
 
 		IsEmailVerified:                 m.IsEmailVerified,
 		EmailVerificationToken:          m.EmailVerificationToken,
@@ -67,13 +72,15 @@ func (m *userModel) ToEntity() *user.User {
 
 func fromUserEntity(u *user.User) *userModel {
 	return &userModel{
-		ID:              u.ID,
-		PersonID:        u.PersonID,
-		Username:        u.Username,
-		Email:           u.Email,
-		Role:            u.Role,
-		Status:          u.Status,
-		IsEmailVerified: u.IsEmailVerified,
+		ID:                  u.ID,
+		PersonID:            u.PersonID,
+		Username:            u.Username,
+		Email:               u.Email,
+		Role:                u.Role,
+		Status:              u.Status,
+		IsEmailVerified:     u.IsEmailVerified,
+		ForcePasswordChange: u.ForcePasswordChange,
+		PasswordChangedAt:   u.PasswordChangedAt,
 	}
 }
 

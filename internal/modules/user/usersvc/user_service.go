@@ -64,6 +64,7 @@ type UserService interface {
 	// Email Verification
 	VerifyEmail(ctx context.Context, token string) error
 	ResendVerifyEmail(ctx context.Context, userID uuid.UUID) (string, error)
+	AdminResendVerifyEmail(ctx context.Context, targetID uuid.UUID) (string, error)
 
 	// Password Management
 	ForgotPassword(ctx context.Context, email string) (string, error)
@@ -84,6 +85,7 @@ type userService struct {
 	authSvc    auth.AuthService
 	mailer     mailer.Mailer
 	webBaseURL string
+	apiBaseURL string
 	logger     logger.Logger
 }
 
@@ -94,6 +96,7 @@ func NewUserService(
 	authSvc auth.AuthService,
 	m mailer.Mailer,
 	webBaseURL string,
+	apiBaseURL string,
 	l logger.Logger,
 ) UserService {
 	if l == nil {
@@ -106,6 +109,7 @@ func NewUserService(
 		authSvc:    authSvc,
 		mailer:     m,
 		webBaseURL: strings.TrimRight(webBaseURL, "/"),
+		apiBaseURL: strings.TrimRight(apiBaseURL, "/"),
 		logger:     l,
 	}
 }
@@ -352,6 +356,14 @@ func (s *userService) Login(ctx context.Context, email, password string) (*Regis
 		s.logger.Warn("Login failed: account banned", "userID", u.ID)
 		return nil, custom_errors.New(403, custom_errors.ErrForbidden, "บัญชีนี้ถูกระงับการใช้งาน")
 	}
+	if u.Status == user.UserStatusPendingVerification || !u.IsEmailVerified {
+		s.logger.Warn("Login failed: email not verified", "userID", u.ID)
+		return nil, custom_errors.New(403, custom_errors.ErrForbidden, "กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ")
+	}
+	if u.Status == user.UserStatusPendingVerification || !u.IsEmailVerified {
+		s.logger.Warn("Login failed: email not verified", "userID", u.ID)
+		return nil, custom_errors.New(403, custom_errors.ErrForbidden, "กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ")
+	}
 
 	// 3. ตรวจสอบ password
 	if err := s.authSvc.ComparePassword(localAuth.Secret, password); err != nil {
@@ -465,9 +477,15 @@ func (s *userService) ResendVerifyEmail(ctx context.Context, userID uuid.UUID) (
 	if err := s.repo.SetEmailVerificationToken(ctx, userID, token, expiresAt); err != nil {
 		return "", err
 	}
-	// TODO: send email verification link if needed
+	if err := s.sendVerificationEmailAsync(u.Email, token); err != nil {
+		return "", err
+	}
 	s.logger.Info("Email verification token generated", "userID", userID)
 	return token, nil
+}
+
+func (s *userService) AdminResendVerifyEmail(ctx context.Context, targetID uuid.UUID) (string, error) {
+	return s.ResendVerifyEmail(ctx, targetID)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -492,7 +510,9 @@ func (s *userService) ForgotPassword(ctx context.Context, email string) (string,
 	if err := s.repo.SetPasswordResetToken(ctx, u.ID, token, expiresAt); err != nil {
 		return "", err
 	}
-	s.sendResetPasswordEmailAsync(u.Email, token)
+	if err := s.sendResetPasswordEmailAsync(u.Email, token); err != nil {
+		return "", err
+	}
 	s.logger.Info("Password reset token generated", "userID", u.ID)
 	return token, nil
 }
@@ -515,7 +535,7 @@ func (s *userService) ResetPassword(ctx context.Context, token, newPassword stri
 	if err := s.repo.UpdateLocalAuthSecret(ctx, u.ID, hashed); err != nil {
 		return err
 	}
-	return s.repo.ClearPasswordResetToken(ctx, u.ID)
+	return s.repo.MarkPasswordChanged(ctx, u.ID, wela.NowUTC())
 }
 
 func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error {
@@ -533,7 +553,10 @@ func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 	if err != nil {
 		return custom_errors.NewInternalError("ไม่สามารถประมวลผล password ได้")
 	}
-	return s.repo.UpdateLocalAuthSecret(ctx, userID, hashed)
+	if err := s.repo.UpdateLocalAuthSecret(ctx, userID, hashed); err != nil {
+		return err
+	}
+	return s.repo.MarkPasswordChanged(ctx, userID, wela.NowUTC())
 }
 
 func (s *userService) AdminUpdateUser(ctx context.Context, targetID uuid.UUID, role, status string) (*user.User, error) {
@@ -586,6 +609,9 @@ func (s *userService) AdminSetPassword(ctx context.Context, targetID uuid.UUID, 
 	if err := s.repo.UpdateLocalAuthSecret(ctx, targetID, hashed); err != nil {
 		return err
 	}
+	if err := s.repo.SetForcePasswordChange(ctx, targetID, true); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -622,12 +648,13 @@ func (s *userService) AdminCreateUser(ctx context.Context, email, password, disp
 	}
 
 	newUser := &user.User{
-		PersonID:        newPerson.ID,
-		Username:        username,
-		Email:           email,
-		Role:            role,
-		Status:          user.UserStatusActive,
-		IsEmailVerified: true,
+		PersonID:            newPerson.ID,
+		Username:            username,
+		Email:               email,
+		Role:                role,
+		Status:              user.UserStatusPendingVerification,
+		IsEmailVerified:     false,
+		ForcePasswordChange: true,
 	}
 	if err := s.repo.Create(ctx, newUser); err != nil {
 		return nil, custom_errors.NewInternalError("ไม่สามารถสร้าง user ได้")
@@ -647,6 +674,18 @@ func (s *userService) AdminCreateUser(ctx context.Context, email, password, disp
 		return nil, custom_errors.NewInternalError("ไม่สามารถสร้าง auth ได้")
 	}
 
+	token, err := generateSecureToken()
+	if err != nil {
+		return nil, custom_errors.NewInternalError("ไม่สามารถสร้าง token ยืนยันอีเมลได้")
+	}
+	expiresAt := wela.NowUTC().Add(24 * time.Hour)
+	if err := s.repo.SetEmailVerificationToken(ctx, newUser.ID, token, expiresAt); err != nil {
+		return nil, err
+	}
+	if err := s.sendVerificationEmailAsync(newUser.Email, token); err != nil {
+		return nil, err
+	}
+
 	return newUser, nil
 }
 
@@ -662,10 +701,10 @@ func generateSecureToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-func (s *userService) sendResetPasswordEmailAsync(toEmail, token string) {
+func (s *userService) sendResetPasswordEmailAsync(toEmail, token string) error {
 	if s.mailer == nil || !s.mailer.IsEnabled() {
 		s.logger.Warn("Mailer not configured. Skip sending reset password email", "email", toEmail)
-		return
+		return custom_errors.NewInternalError("ระบบส่งอีเมลยังไม่พร้อมใช้งาน")
 	}
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", s.webBaseURL, token)
 	subject := "รีเซ็ตรหัสผ่าน Vexentra"
@@ -680,7 +719,32 @@ func (s *userService) sendResetPasswordEmailAsync(toEmail, token string) {
 </div>`, html.EscapeString(resetLink), html.EscapeString(resetLink))
 	if err := s.mailer.Send(toEmail, subject, body); err != nil {
 		s.logger.Error("Failed to send reset password email", err, "email", toEmail)
-		return
+		return custom_errors.NewInternalError("ไม่สามารถส่งอีเมลรีเซ็ตรหัสผ่านได้")
 	}
 	s.logger.Info("Reset password email sent", "email", toEmail)
+	return nil
+}
+
+func (s *userService) sendVerificationEmailAsync(toEmail, token string) error {
+	if s.mailer == nil || !s.mailer.IsEnabled() {
+		s.logger.Warn("Mailer not configured. Skip sending verification email", "email", toEmail)
+		return custom_errors.NewInternalError("ระบบส่งอีเมลยังไม่พร้อมใช้งาน")
+	}
+	verifyLink := fmt.Sprintf("%s/verify-email?token=%s", s.webBaseURL, token)
+	subject := "ยืนยันอีเมลบัญชี Vexentra"
+	body := fmt.Sprintf(`
+<div style="font-family: Arial, sans-serif; line-height:1.6; color:#111827">
+  <h2 style="margin-bottom:8px;">ยืนยันอีเมลของคุณ</h2>
+  <p>บัญชีของคุณถูกสร้างในระบบ Vexentra แล้ว</p>
+  <p>กรุณากดยืนยันอีเมลเพื่อเปิดใช้งานบัญชี:</p>
+  <p><a href="%s" style="display:inline-block;padding:10px 14px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;">ยืนยันอีเมล</a></p>
+  <p style="margin-top:12px;">ลิงก์นี้มีอายุ 24 ชั่วโมง</p>
+  <p style="margin-top:20px;color:#6b7280;font-size:12px;">%s</p>
+</div>`, html.EscapeString(verifyLink), html.EscapeString(verifyLink))
+	if err := s.mailer.Send(toEmail, subject, body); err != nil {
+		s.logger.Error("Failed to send verification email", err, "email", toEmail)
+		return custom_errors.NewInternalError("ไม่สามารถส่งอีเมลยืนยันได้")
+	}
+	s.logger.Info("Verification email sent", "email", toEmail)
+	return nil
 }

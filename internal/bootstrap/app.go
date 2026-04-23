@@ -85,6 +85,7 @@ func InitializeApp(cfg *config.Config) (*App, error) {
 		authSvc,
 		mailerSvc,
 		cfg.App.WebBaseURL,
+		cfg.App.APIBaseURL,
 		l,
 	)
 	profileSvc := usersvc.NewProfileService(userRepo, profileRepo, socialPlatformRepo, l)

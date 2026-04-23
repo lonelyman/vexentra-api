@@ -261,6 +261,19 @@ func (h *UserHandler) AdminGetUser(c fiber.Ctx) error {
 	return presenter.RenderItem(c, NewUserResponse(u))
 }
 
+// AdminResendVerifyEmail — POST /api/v1/users/:id/resend-verify (admin only)
+func (h *UserHandler) AdminResendVerifyEmail(c fiber.Ctx) error {
+	targetID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return presenter.RenderError(c, custom_errors.New(400, "INVALID_ID", "รูปแบบ User ID ไม่ถูกต้อง"))
+	}
+	_, svcErr := h.svc.AdminResendVerifyEmail(c.Context(), targetID)
+	if svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	return presenter.RenderItem(c, fiber.Map{"message": "ส่งอีเมลยืนยันอีกครั้งเรียบร้อย"})
+}
+
 func (h *UserHandler) AdminCreateUser(c fiber.Ctx) error {
 	req := new(AdminCreateUserRequest)
 	if bindErr := c.Bind().Body(req); bindErr != nil {

@@ -23,6 +23,7 @@ type AppConfig struct {
 	AppPort            string
 	Timezone           string
 	WebBaseURL         string   // base URL for frontend links used in email templates
+	APIBaseURL         string   // public base URL for API links used in email templates
 	CORSAllowedOrigins []string // comma-separated via API_CORS_ALLOWED_ORIGINS
 	ShowcasePersonID   string   // optional: fixed person ID for public showcase endpoint
 	ProjectCodePrefix  string   // uppercase alphabetic prefix for PREFIX-YYYY-NNNN project codes
@@ -80,6 +81,7 @@ func LoadConfig() (*Config, error) {
 			AppPort:            mustGetEnv("API_PORT", &missingKeys),
 			Timezone:           getEnv("API_TIMEZONE", "Asia/Bangkok"),
 			WebBaseURL:         getEnv("APP_WEB_URL", "http://localhost:3005"),
+			APIBaseURL:         getEnv("APP_API_URL", "http://localhost:3000"),
 			CORSAllowedOrigins: getEnvAsSlice("API_CORS_ALLOWED_ORIGINS", nil),
 			ShowcasePersonID:   getEnv("APP_SHOWCASE_PERSON_ID", ""),
 			ProjectCodePrefix:  strings.ToUpper(getEnv("APP_PROJECT_CODE_PREFIX", "VX")),

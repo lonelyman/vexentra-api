@@ -37,6 +37,8 @@ type UserRepository interface {
 	GetByEmailWithLocalAuth(ctx context.Context, email string) (*User, *UserAuth, error)
 	UpdateLocalAuthSecret(ctx context.Context, userID uuid.UUID, secret string) error
 	UpdateAuthRefreshToken(ctx context.Context, authID uuid.UUID, token *string) error
+	SetForcePasswordChange(ctx context.Context, userID uuid.UUID, required bool) error
+	MarkPasswordChanged(ctx context.Context, userID uuid.UUID, changedAt time.Time) error
 
 	// ─── Pagination ──────────────────────────────────────────────────────────
 	// ListOffset returns a page of users for offset-based pagination.

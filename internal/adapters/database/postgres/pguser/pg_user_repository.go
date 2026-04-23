@@ -312,6 +312,34 @@ func (r *userRepository) UpdateAuthRefreshToken(ctx context.Context, authID uuid
 	return nil
 }
 
+func (r *userRepository) SetForcePasswordChange(ctx context.Context, userID uuid.UUID, required bool) error {
+	if err := r.db.WithContext(ctx).Model(&userModel{}).
+		Where("id = ?", userID).
+		Updates(map[string]any{
+			"force_password_change": required,
+			"password_changed_at":   nil,
+		}).Error; err != nil {
+		r.logger.Error("DB_SET_FORCE_PASSWORD_CHANGE_ERROR", err)
+		return err
+	}
+	return nil
+}
+
+func (r *userRepository) MarkPasswordChanged(ctx context.Context, userID uuid.UUID, changedAt time.Time) error {
+	if err := r.db.WithContext(ctx).Model(&userModel{}).
+		Where("id = ?", userID).
+		Updates(map[string]any{
+			"password_changed_at":             changedAt,
+			"force_password_change":           false,
+			"password_reset_token":            nil,
+			"password_reset_token_expires_at": nil,
+		}).Error; err != nil {
+		r.logger.Error("DB_MARK_PASSWORD_CHANGED_ERROR", err)
+		return err
+	}
+	return nil
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Pagination
 // ─────────────────────────────────────────────────────────────────────────────

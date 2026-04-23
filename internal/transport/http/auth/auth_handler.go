@@ -1,6 +1,7 @@
 package authhdl
 
 import (
+	"time"
 	"vexentra-api/internal/modules/user"
 	"vexentra-api/internal/modules/user/usersvc"
 	"vexentra-api/internal/transport/http/presenter"
@@ -56,12 +57,19 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	}
 
 	h.logger.Success("User logged in", "userID", result.User.ID)
+	var changedAt *string
+	if result.User.PasswordChangedAt != nil {
+		v := result.User.PasswordChangedAt.Format(time.RFC3339)
+		changedAt = &v
+	}
 	return presenter.RenderItem(c, LoginResponse{
-		UserID:       result.User.ID.String(),
-		Email:        result.User.Email,
-		Role:         result.User.Role,
-		AccessToken:  result.TokenPair.AccessToken,
-		RefreshToken: result.TokenPair.RefreshToken,
+		UserID:              result.User.ID.String(),
+		Email:               result.User.Email,
+		Role:                result.User.Role,
+		ForcePasswordChange: result.User.ForcePasswordChange,
+		PasswordChangedAt:   changedAt,
+		AccessToken:         result.TokenPair.AccessToken,
+		RefreshToken:        result.TokenPair.RefreshToken,
 	})
 }
 

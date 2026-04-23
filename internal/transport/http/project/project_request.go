@@ -3,6 +3,8 @@ package projecthdl
 import (
 	"time"
 
+	"vexentra-api/internal/modules/project"
+
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -10,24 +12,31 @@ import (
 // ----- Project -----
 
 type CreateProjectRequest struct {
-	Name             string     `json:"name"              validate:"required,min=1,max=200"`
-	Description      *string    `json:"description"`
-	ClientPersonID   *string    `json:"client_person_id"  validate:"omitempty,uuid"`
-	ClientNameRaw    *string    `json:"client_name_raw"`
-	ClientEmailRaw   *string    `json:"client_email_raw"  validate:"omitempty,email"`
-	ScheduledStartAt *time.Time `json:"scheduled_start_at"`
-	DeadlineAt       *time.Time `json:"deadline_at"`
+	Name                      string     `json:"name"              validate:"required,min=1,max=200"`
+	ProjectKind               *string    `json:"project_kind"      validate:"omitempty,oneof=client_delivery internal_continuous"`
+	Description               *string    `json:"description"`
+	ClientPersonID            *string    `json:"client_person_id"  validate:"omitempty,uuid"`
+	InitialLeadPersonID       *string    `json:"initial_lead_person_id" validate:"omitempty,uuid"`
+	ContractFinanceVisibility *string    `json:"contract_finance_visibility" validate:"omitempty,oneof=all_members lead_coordinator_staff staff_only"`
+	ExpenseFinanceVisibility  *string    `json:"expense_finance_visibility"  validate:"omitempty,oneof=all_members lead_coordinator_staff staff_only"`
+	ClientNameRaw             *string    `json:"client_name_raw"`
+	ClientEmailRaw            *string    `json:"client_email_raw"  validate:"omitempty,email"`
+	ScheduledStartAt          *time.Time `json:"scheduled_start_at"`
+	DeadlineAt                *time.Time `json:"deadline_at"`
 }
 
 type UpdateProjectRequest struct {
-	Name             string     `json:"name"              validate:"required,min=1,max=200"`
-	Description      *string    `json:"description"`
-	Status           string     `json:"status"            validate:"required"`
-	ClientPersonID   *string    `json:"client_person_id"  validate:"omitempty,uuid"`
-	ClientNameRaw    *string    `json:"client_name_raw"`
-	ClientEmailRaw   *string    `json:"client_email_raw"  validate:"omitempty,email"`
-	ScheduledStartAt *time.Time `json:"scheduled_start_at"`
-	DeadlineAt       *time.Time `json:"deadline_at"`
+	Name                      string     `json:"name"              validate:"required,min=1,max=200"`
+	ProjectKind               *string    `json:"project_kind"      validate:"omitempty,oneof=client_delivery internal_continuous"`
+	Description               *string    `json:"description"`
+	Status                    string     `json:"status"            validate:"required"`
+	ClientPersonID            *string    `json:"client_person_id"  validate:"omitempty,uuid"`
+	ContractFinanceVisibility *string    `json:"contract_finance_visibility" validate:"omitempty,oneof=all_members lead_coordinator_staff staff_only"`
+	ExpenseFinanceVisibility  *string    `json:"expense_finance_visibility"  validate:"omitempty,oneof=all_members lead_coordinator_staff staff_only"`
+	ClientNameRaw             *string    `json:"client_name_raw"`
+	ClientEmailRaw            *string    `json:"client_email_raw"  validate:"omitempty,email"`
+	ScheduledStartAt          *time.Time `json:"scheduled_start_at"`
+	DeadlineAt                *time.Time `json:"deadline_at"`
 }
 
 type CloseProjectRequest struct {
@@ -55,11 +64,18 @@ type UpsertProjectInstallmentRequestItem struct {
 // ----- Member -----
 
 type AddMemberRequest struct {
-	PersonID string `json:"person_id" validate:"required,uuid"`
+	PersonID      string   `json:"person_id" validate:"required,uuid"`
+	RoleIDs       []string `json:"role_ids"`
+	PrimaryRoleID *string  `json:"primary_role_id" validate:"omitempty,uuid"`
 }
 
 type TransferLeadRequest struct {
 	MemberID string `json:"member_id" validate:"required,uuid"`
+}
+
+type UpdateMemberRolesRequest struct {
+	RoleIDs       []string `json:"role_ids"`
+	PrimaryRoleID *string  `json:"primary_role_id" validate:"omitempty,uuid"`
 }
 
 // ----- Transaction -----
@@ -90,4 +106,20 @@ func parseUUIDPtr(s *string) (*uuid.UUID, error) {
 		return nil, err
 	}
 	return &u, nil
+}
+
+func parseFinanceVisibilityPtr(s *string) *project.FinanceVisibility {
+	if s == nil || *s == "" {
+		return nil
+	}
+	v := project.FinanceVisibility(*s)
+	return &v
+}
+
+func parseProjectKindPtr(s *string) *project.ProjectKind {
+	if s == nil || *s == "" {
+		return nil
+	}
+	v := project.ProjectKind(*s)
+	return &v
 }

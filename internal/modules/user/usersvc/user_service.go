@@ -55,8 +55,8 @@ type UserService interface {
 	Register(ctx context.Context, email, password, inviteToken string) (*RegisterResult, error)
 	Login(ctx context.Context, email, password string) (*RegisterResult, error)
 	GetProfile(ctx context.Context, userID uuid.UUID) (*user.User, error)
-	ListUsersOffset(ctx context.Context, limit, offset int) (*ListUsersOffsetResult, error)
-	ListUsersCursor(ctx context.Context, afterID uuid.UUID, limit int) (*ListUsersCursorResult, error)
+	ListUsersOffset(ctx context.Context, limit, offset int, search, status string) (*ListUsersOffsetResult, error)
+	ListUsersCursor(ctx context.Context, afterID uuid.UUID, limit int, search, status string) (*ListUsersCursorResult, error)
 
 	// Claim Person — user ยืนยันว่าต้องการผูก Person ที่ระบบ suggest
 	ClaimPerson(ctx context.Context, userID, personID uuid.UUID) error
@@ -401,10 +401,10 @@ func (s *userService) GetProfile(ctx context.Context, userID uuid.UUID) (*user.U
 	return u, nil
 }
 
-func (s *userService) ListUsersOffset(ctx context.Context, limit, offset int) (*ListUsersOffsetResult, error) {
-	s.logger.Info("Listing users (offset)", "limit", limit, "offset", offset)
+func (s *userService) ListUsersOffset(ctx context.Context, limit, offset int, search, status string) (*ListUsersOffsetResult, error) {
+	s.logger.Info("Listing users (offset)", "limit", limit, "offset", offset, "search", search, "status", status)
 
-	users, total, err := s.repo.ListOffset(ctx, limit, offset)
+	users, total, err := s.repo.ListOffset(ctx, limit, offset, search, status)
 	if err != nil {
 		s.logger.Error("Failed to list users (offset)", err)
 		return nil, err
@@ -413,11 +413,11 @@ func (s *userService) ListUsersOffset(ctx context.Context, limit, offset int) (*
 	return &ListUsersOffsetResult{Users: users, Total: total}, nil
 }
 
-func (s *userService) ListUsersCursor(ctx context.Context, afterID uuid.UUID, limit int) (*ListUsersCursorResult, error) {
-	s.logger.Info("Listing users (cursor)", "afterID", afterID, "limit", limit)
+func (s *userService) ListUsersCursor(ctx context.Context, afterID uuid.UUID, limit int, search, status string) (*ListUsersCursorResult, error) {
+	s.logger.Info("Listing users (cursor)", "afterID", afterID, "limit", limit, "search", search, "status", status)
 
 	// Fetch limit+1 to detect whether more pages exist
-	users, err := s.repo.ListAfterCursor(ctx, afterID, limit+1)
+	users, err := s.repo.ListAfterCursor(ctx, afterID, limit+1, search, status)
 	if err != nil {
 		s.logger.Error("Failed to list users (cursor)", err)
 		return nil, err

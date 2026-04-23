@@ -129,8 +129,10 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Delete("/projects/:id", h.Project.Delete)
 
 	// Members
+	protected.Get("/project-member-roles", h.Member.ListRoleMaster)
 	protected.Post("/projects/:id/members", h.Member.Add)
 	protected.Get("/projects/:id/members", h.Member.List)
+	protected.Put("/projects/:id/members/:memberID/roles", h.Member.UpdateMemberRoles)
 	protected.Delete("/projects/:id/members/:memberID", h.Member.Remove)
 	protected.Post("/projects/:id/transfer-lead", h.Member.TransferLead)
 

@@ -43,10 +43,10 @@ type UserRepository interface {
 	// ─── Pagination ──────────────────────────────────────────────────────────
 	// ListOffset returns a page of users for offset-based pagination.
 	// Returns total count of all active users (for TotalPages calculation).
-	ListOffset(ctx context.Context, limit, offset int) ([]*User, int64, error)
+	ListOffset(ctx context.Context, limit, offset int, search, status string) ([]*User, int64, error)
 
 	// ListAfterCursor returns users whose ID > afterID, ordered by ID ASC.
 	// Fetch limit+1 to detect hasMore — caller trims the extra item.
 	// Pass uuid.Nil (zero value) to start from the beginning.
-	ListAfterCursor(ctx context.Context, afterID uuid.UUID, limit int) ([]*User, error)
+	ListAfterCursor(ctx context.Context, afterID uuid.UUID, limit int, search, status string) ([]*User, error)
 }

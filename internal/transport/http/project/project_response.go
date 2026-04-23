@@ -13,10 +13,13 @@ type ProjectResponse struct {
 	ID          string  `json:"id"`
 	ProjectCode string  `json:"project_code"`
 	Name        string  `json:"name"`
+	ProjectKind string  `json:"project_kind"`
 	Description *string `json:"description,omitempty"`
 
-	Status        string  `json:"status"`
-	ClosureReason *string `json:"closure_reason,omitempty"`
+	Status                    string  `json:"status"`
+	ClosureReason             *string `json:"closure_reason,omitempty"`
+	ContractFinanceVisibility string  `json:"contract_finance_visibility"`
+	ExpenseFinanceVisibility  string  `json:"expense_finance_visibility"`
 
 	ClientPersonID *string `json:"client_person_id,omitempty"`
 	ClientNameRaw  *string `json:"client_name_raw,omitempty"`
@@ -56,20 +59,23 @@ func NewProjectStatusResponse(s project.ProjectStatusMeta) ProjectStatusResponse
 
 func NewProjectResponse(p *project.Project) ProjectResponse {
 	r := ProjectResponse{
-		ID:               p.ID.String(),
-		ProjectCode:      p.ProjectCode,
-		Name:             p.Name,
-		Description:      p.Description,
-		Status:           string(p.Status),
-		ClientNameRaw:    p.ClientNameRaw,
-		ClientEmailRaw:   p.ClientEmailRaw,
-		ScheduledStartAt: p.ScheduledStartAt,
-		DeadlineAt:       p.DeadlineAt,
-		ActivatedAt:      p.ActivatedAt,
-		ClosedAt:         p.ClosedAt,
-		CreatedByUserID:  p.CreatedByUserID.String(),
-		CreatedAt:        p.CreatedAt,
-		UpdatedAt:        p.UpdatedAt,
+		ID:                        p.ID.String(),
+		ProjectCode:               p.ProjectCode,
+		Name:                      p.Name,
+		ProjectKind:               string(p.Kind),
+		Description:               p.Description,
+		Status:                    string(p.Status),
+		ContractFinanceVisibility: string(p.ContractFinanceVisibility),
+		ExpenseFinanceVisibility:  string(p.ExpenseFinanceVisibility),
+		ClientNameRaw:             p.ClientNameRaw,
+		ClientEmailRaw:            p.ClientEmailRaw,
+		ScheduledStartAt:          p.ScheduledStartAt,
+		DeadlineAt:                p.DeadlineAt,
+		ActivatedAt:               p.ActivatedAt,
+		ClosedAt:                  p.ClosedAt,
+		CreatedByUserID:           p.CreatedByUserID.String(),
+		CreatedAt:                 p.CreatedAt,
+		UpdatedAt:                 p.UpdatedAt,
 	}
 	if p.ClosureReason != nil {
 		s := string(*p.ClosureReason)
@@ -83,22 +89,66 @@ func NewProjectResponse(p *project.Project) ProjectResponse {
 }
 
 type MemberResponse struct {
-	ID            string    `json:"id"`
-	ProjectID     string    `json:"project_id"`
-	PersonID      string    `json:"person_id"`
-	IsLead        bool      `json:"is_lead"`
-	AddedByUserID string    `json:"added_by_user_id"`
-	JoinedAt      time.Time `json:"joined_at"`
+	ID            string               `json:"id"`
+	ProjectID     string               `json:"project_id"`
+	PersonID      string               `json:"person_id"`
+	IsLead        bool                 `json:"is_lead"`
+	Roles         []MemberRoleResponse `json:"roles"`
+	AddedByUserID string               `json:"added_by_user_id"`
+	JoinedAt      time.Time            `json:"joined_at"`
+}
+
+type MemberRoleResponse struct {
+	AssignmentID string `json:"assignment_id"`
+	RoleID       string `json:"role_id"`
+	Code         string `json:"code"`
+	NameTH       string `json:"name_th"`
+	NameEN       string `json:"name_en"`
+	IsPrimary    bool   `json:"is_primary"`
+}
+
+type ProjectRoleMasterResponse struct {
+	ID          string  `json:"id"`
+	Code        string  `json:"code"`
+	NameTH      string  `json:"name_th"`
+	NameEN      string  `json:"name_en"`
+	Description *string `json:"description,omitempty"`
+	SortOrder   int     `json:"sort_order"`
+	IsActive    bool    `json:"is_active"`
 }
 
 func NewMemberResponse(m *project.ProjectMember) MemberResponse {
+	roles := make([]MemberRoleResponse, len(m.Roles))
+	for i := range m.Roles {
+		roles[i] = MemberRoleResponse{
+			AssignmentID: m.Roles[i].AssignmentID.String(),
+			RoleID:       m.Roles[i].RoleID.String(),
+			Code:         m.Roles[i].Code,
+			NameTH:       m.Roles[i].NameTH,
+			NameEN:       m.Roles[i].NameEN,
+			IsPrimary:    m.Roles[i].IsPrimary,
+		}
+	}
 	return MemberResponse{
 		ID:            m.ID.String(),
 		ProjectID:     m.ProjectID.String(),
 		PersonID:      m.PersonID.String(),
 		IsLead:        m.IsLead,
+		Roles:         roles,
 		AddedByUserID: m.AddedByUserID.String(),
 		JoinedAt:      m.CreatedAt,
+	}
+}
+
+func NewProjectRoleMasterResponse(r *project.ProjectRole) ProjectRoleMasterResponse {
+	return ProjectRoleMasterResponse{
+		ID:          r.ID.String(),
+		Code:        r.Code,
+		NameTH:      r.NameTH,
+		NameEN:      r.NameEN,
+		Description: r.Description,
+		SortOrder:   r.SortOrder,
+		IsActive:    r.IsActive,
 	}
 }
 

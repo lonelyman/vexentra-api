@@ -1,6 +1,7 @@
 package userhdl
 
 import (
+	"strings"
 	"vexentra-api/internal/modules/user/usersvc"
 	"vexentra-api/internal/transport/http/presenter"
 	"vexentra-api/pkg/auth"
@@ -121,6 +122,7 @@ func (h *UserHandler) GetProfile(c fiber.Ctx) error {
 // ListUsers godoc
 // GET /api/v1/users?page=1&limit=10           → offset-based pagination
 // GET /api/v1/users?cursor=<uuid>&limit=20    → cursor-based pagination
+// Optional filter: search=<text>&status=<active|...>
 //
 // Mode is selected by the presence of the "cursor" query param.
 // If "cursor" is present (even empty string won't trigger — must use ?cursor=<value>),
@@ -134,8 +136,10 @@ func (h *UserHandler) ListUsers(c fiber.Ctx) error {
 
 func (h *UserHandler) listUsersOffset(c fiber.Ctx) error {
 	q := presenter.ParseOffsetQuery(c)
+	search := strings.TrimSpace(c.Query("search", ""))
+	status := strings.TrimSpace(c.Query("status", ""))
 
-	result, err := h.svc.ListUsersOffset(c.Context(), q.Limit, q.Offset)
+	result, err := h.svc.ListUsersOffset(c.Context(), q.Limit, q.Offset, search, status)
 	if err != nil {
 		return err
 	}
@@ -146,12 +150,14 @@ func (h *UserHandler) listUsersOffset(c fiber.Ctx) error {
 	}
 
 	pg := presenter.NewOffsetPagination(int(result.Total), q.Limit, q.Offset)
-	h.logger.Info("Listed users (offset)", "page", q.Page, "total", result.Total)
+	h.logger.Info("Listed users (offset)", "page", q.Page, "total", result.Total, "search", search, "status", status)
 	return presenter.RenderList(c, items, pg)
 }
 
 func (h *UserHandler) listUsersCursor(c fiber.Ctx) error {
 	q := presenter.ParseCursorQuery(c)
+	search := strings.TrimSpace(c.Query("search", ""))
+	status := strings.TrimSpace(c.Query("status", ""))
 
 	afterID := uuid.Nil
 	if q.Cursor != "" {
@@ -162,7 +168,7 @@ func (h *UserHandler) listUsersCursor(c fiber.Ctx) error {
 		}
 	}
 
-	result, err := h.svc.ListUsersCursor(c.Context(), afterID, q.Limit)
+	result, err := h.svc.ListUsersCursor(c.Context(), afterID, q.Limit, search, status)
 	if err != nil {
 		return err
 	}
@@ -173,7 +179,7 @@ func (h *UserHandler) listUsersCursor(c fiber.Ctx) error {
 	}
 
 	pg := presenter.NewCursorPagination(result.NextCursor, result.HasMore, q.Limit)
-	h.logger.Info("Listed users (cursor)", "cursor", q.Cursor, "count", len(items))
+	h.logger.Info("Listed users (cursor)", "cursor", q.Cursor, "count", len(items), "search", search, "status", status)
 	return presenter.RenderList(c, items, pg)
 }
 

@@ -21,27 +21,34 @@ import (
 // CreateProjectInput is the narrowed surface the service exposes to handlers.
 // Status is always created as 'draft' — promotion happens via Update/Close.
 type CreateProjectInput struct {
-	Name             string
-	Description      *string
-	ClientPersonID   *uuid.UUID
-	ClientNameRaw    *string
-	ClientEmailRaw   *string
-	ScheduledStartAt *time.Time
-	DeadlineAt       *time.Time
+	Name                      string
+	ProjectKind               *project.ProjectKind
+	Description               *string
+	ClientPersonID            *uuid.UUID
+	InitialLeadPersonID       *uuid.UUID
+	ContractFinanceVisibility *project.FinanceVisibility
+	ExpenseFinanceVisibility  *project.FinanceVisibility
+	ClientNameRaw             *string
+	ClientEmailRaw            *string
+	ScheduledStartAt          *time.Time
+	DeadlineAt                *time.Time
 }
 
 // UpdateProjectInput carries patchable fields. Status transitions and closure
 // are handled separately by CloseProject / ReopenProject so each has its own
 // invariant check.
 type UpdateProjectInput struct {
-	Name             string
-	Description      *string
-	ClientPersonID   *uuid.UUID
-	ClientNameRaw    *string
-	ClientEmailRaw   *string
-	ScheduledStartAt *time.Time
-	DeadlineAt       *time.Time
-	Status           project.ProjectStatus // must not be 'closed' — use CloseProject
+	Name                      string
+	ProjectKind               *project.ProjectKind
+	Description               *string
+	ClientPersonID            *uuid.UUID
+	ContractFinanceVisibility *project.FinanceVisibility
+	ExpenseFinanceVisibility  *project.FinanceVisibility
+	ClientNameRaw             *string
+	ClientEmailRaw            *string
+	ScheduledStartAt          *time.Time
+	DeadlineAt                *time.Time
+	Status                    project.ProjectStatus // must not be 'closed' — use CloseProject
 }
 
 type CloseProjectInput struct {
@@ -84,6 +91,8 @@ type ProjectService interface {
 	// reuse the same access rule: staff bypass, members must have an active
 	// project_members row, creator always allowed on their own project.
 	CanAccessProject(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.Project, error)
+	RequireContractFinanceRead(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.Project, error)
+	RequireExpenseFinanceRead(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.Project, error)
 }
 
 type projectService struct {
@@ -93,6 +102,8 @@ type projectService struct {
 	codePrefix  string
 	logger      logger.Logger
 }
+
+const projectCoordinatorRoleCode = "coordinator"
 
 func NewProjectService(
 	db *gorm.DB,
@@ -117,13 +128,32 @@ func NewProjectService(
 // Commands
 // -----------------------------------------------------------------------------
 
-// Create inserts a new Project (status='draft') and auto-adds the creator as
-// the initial project_member with is_lead=true — both inside one transaction
-// via pgtx.Run so either both succeed or neither does.
+// Create inserts a new Project (status='draft'). Initial lead is optional:
+// if InitialLeadPersonID is provided, that person is added as the first lead.
+// This keeps creator/audit identity separate from team responsibility.
 func (s *projectService) Create(ctx context.Context, caller user.Caller, in CreateProjectInput) (*project.Project, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return nil, custom_errors.New(400, custom_errors.ErrValidation, "ชื่อโปรเจกต์ห้ามว่าง")
+	}
+
+	contractVisibility := project.FinanceVisibilityAllMembers
+	if in.ContractFinanceVisibility != nil {
+		contractVisibility = *in.ContractFinanceVisibility
+	}
+	expenseVisibility := project.FinanceVisibilityAllMembers
+	if in.ExpenseFinanceVisibility != nil {
+		expenseVisibility = *in.ExpenseFinanceVisibility
+	}
+	if !isValidFinanceVisibility(contractVisibility) || !isValidFinanceVisibility(expenseVisibility) {
+		return nil, custom_errors.New(400, custom_errors.ErrValidation, "ค่า finance visibility ไม่ถูกต้อง")
+	}
+	projectKind := project.ProjectKindClientDelivery
+	if in.ProjectKind != nil {
+		projectKind = *in.ProjectKind
+	}
+	if !isValidProjectKind(projectKind) {
+		return nil, custom_errors.New(400, custom_errors.ErrValidation, "project_kind ไม่ถูกต้อง")
 	}
 
 	var created *project.Project
@@ -135,29 +165,34 @@ func (s *projectService) Create(ctx context.Context, caller user.Caller, in Crea
 		code := fmt.Sprintf("%s-%d-%04d", s.codePrefix, wela.NowUTC().Year(), seq)
 
 		p := &project.Project{
-			ProjectCode:      code,
-			Name:             name,
-			Description:      in.Description,
-			Status:           project.ProjectStatusDraft,
-			ClientPersonID:   in.ClientPersonID,
-			ClientNameRaw:    in.ClientNameRaw,
-			ClientEmailRaw:   in.ClientEmailRaw,
-			ScheduledStartAt: in.ScheduledStartAt,
-			DeadlineAt:       in.DeadlineAt,
-			CreatedByUserID:  caller.UserID,
+			ProjectCode:               code,
+			Name:                      name,
+			Description:               in.Description,
+			Kind:                      projectKind,
+			Status:                    project.ProjectStatusDraft,
+			ContractFinanceVisibility: contractVisibility,
+			ExpenseFinanceVisibility:  expenseVisibility,
+			ClientPersonID:            in.ClientPersonID,
+			ClientNameRaw:             in.ClientNameRaw,
+			ClientEmailRaw:            in.ClientEmailRaw,
+			ScheduledStartAt:          in.ScheduledStartAt,
+			DeadlineAt:                in.DeadlineAt,
+			CreatedByUserID:           caller.UserID,
 		}
 		if err := s.projectRepo.Create(ctx, p); err != nil {
 			return err
 		}
 
-		lead := &project.ProjectMember{
-			ProjectID:     p.ID,
-			PersonID:      caller.PersonID,
-			IsLead:        true,
-			AddedByUserID: caller.UserID,
-		}
-		if err := s.memberRepo.Add(ctx, lead); err != nil {
-			return err
+		if in.InitialLeadPersonID != nil {
+			lead := &project.ProjectMember{
+				ProjectID:     p.ID,
+				PersonID:      *in.InitialLeadPersonID,
+				IsLead:        true,
+				AddedByUserID: caller.UserID,
+			}
+			if err := s.memberRepo.Add(ctx, lead); err != nil {
+				return err
+			}
 		}
 
 		created = p
@@ -187,7 +222,14 @@ func (s *projectService) Update(ctx context.Context, caller user.Caller, id uuid
 	}
 
 	// Promote to active/on_hold/closed requires a client — mirrors DB CHECK.
-	if requiresClient(in.Status) && in.ClientPersonID == nil {
+	nextKind := p.Kind
+	if in.ProjectKind != nil {
+		if !isValidProjectKind(*in.ProjectKind) {
+			return nil, custom_errors.New(400, custom_errors.ErrValidation, "project_kind ไม่ถูกต้อง")
+		}
+		nextKind = *in.ProjectKind
+	}
+	if requiresClient(in.Status, nextKind) && in.ClientPersonID == nil {
 		return nil, custom_errors.New(400, custom_errors.ErrValidation, "ต้องระบุลูกค้า (client_person_id) ก่อนเปลี่ยนสถานะเป็น active/on_hold")
 	}
 
@@ -198,13 +240,33 @@ func (s *projectService) Update(ctx context.Context, caller user.Caller, id uuid
 
 	// Stamp activated_at the first time the project enters 'active'.
 	if in.Status == project.ProjectStatusActive && p.ActivatedAt == nil {
+		lead, leadErr := s.memberRepo.GetActiveLead(ctx, p.ID)
+		if leadErr != nil {
+			return nil, leadErr
+		}
+		if lead == nil {
+			return nil, custom_errors.New(400, custom_errors.ErrValidation, "ก่อนเปลี่ยนเป็น active ต้องกำหนดหัวหน้าทีมก่อน")
+		}
 		now := wela.NowUTC()
 		p.ActivatedAt = &now
 	}
 
 	p.Name = name
+	p.Kind = nextKind
 	p.Description = in.Description
 	p.Status = in.Status
+	if in.ContractFinanceVisibility != nil {
+		if !isValidFinanceVisibility(*in.ContractFinanceVisibility) {
+			return nil, custom_errors.New(400, custom_errors.ErrValidation, "contract_finance_visibility ไม่ถูกต้อง")
+		}
+		p.ContractFinanceVisibility = *in.ContractFinanceVisibility
+	}
+	if in.ExpenseFinanceVisibility != nil {
+		if !isValidFinanceVisibility(*in.ExpenseFinanceVisibility) {
+			return nil, custom_errors.New(400, custom_errors.ErrValidation, "expense_finance_visibility ไม่ถูกต้อง")
+		}
+		p.ExpenseFinanceVisibility = *in.ExpenseFinanceVisibility
+	}
 	if in.Status != project.ProjectStatusClosed {
 		// Reopen path: when moving from terminal status back to open statuses,
 		// closed markers must be cleared to satisfy DB consistency checks.
@@ -239,7 +301,7 @@ func (s *projectService) Close(ctx context.Context, caller user.Caller, id uuid.
 	if in.ClosedAt == nil {
 		return nil, custom_errors.New(400, custom_errors.ErrValidation, "ต้องระบุวันที่ปิดโครงการ (closed_at)")
 	}
-	if p.ClientPersonID == nil {
+	if p.Kind == project.ProjectKindClientDelivery && p.ClientPersonID == nil {
 		return nil, custom_errors.New(400, custom_errors.ErrValidation, "โปรเจกต์ต้องมีลูกค้าก่อนปิดงาน")
 	}
 
@@ -255,18 +317,15 @@ func (s *projectService) Close(ctx context.Context, caller user.Caller, id uuid.
 	return p, nil
 }
 
-// Delete soft-deletes a project. Only the creator or staff may delete —
-// project leads intentionally cannot destroy a project they don't own.
+// Delete soft-deletes a project.
+// Permission model follows governance writes: staff, lead, coordinator.
 func (s *projectService) Delete(ctx context.Context, caller user.Caller, id uuid.UUID) error {
-	p, err := s.projectRepo.GetByID(ctx, id)
+	p, err := s.requireModifyAccess(ctx, caller, id)
 	if err != nil {
 		return err
 	}
-	if p == nil {
-		return custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบโปรเจกต์นี้")
-	}
-	if !caller.IsStaff() && p.CreatedByUserID != caller.UserID {
-		return custom_errors.New(403, custom_errors.ErrForbidden, "เฉพาะผู้สร้างหรือผู้ดูแลระบบเท่านั้นที่ลบโปรเจกต์ได้")
+	if p.Status == project.ProjectStatusClosed && !caller.IsStaff() {
+		return custom_errors.New(409, "PROJECT_CLOSED", "โปรเจกต์ปิดแล้ว ไม่สามารถลบได้")
 	}
 	return s.projectRepo.Delete(ctx, id)
 }
@@ -330,7 +389,7 @@ func (s *projectService) ListStatuses(ctx context.Context, caller user.Caller, a
 }
 
 func (s *projectService) GetFinancialPlan(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.ProjectFinancialPlan, error) {
-	if _, err := s.CanAccessProject(ctx, caller, id); err != nil {
+	if _, err := s.RequireContractFinanceRead(ctx, caller, id); err != nil {
 		return nil, err
 	}
 	return s.projectRepo.GetFinancialPlan(ctx, id)
@@ -343,6 +402,14 @@ func (s *projectService) UpsertFinancialPlan(ctx context.Context, caller user.Ca
 	}
 	if p.Status == project.ProjectStatusClosed && !caller.IsStaff() {
 		return nil, custom_errors.New(409, "PROJECT_CLOSED", "โปรเจกต์ปิดแล้ว ไม่สามารถแก้ไขแผนค่าจ้างได้")
+	}
+	if p.Kind == project.ProjectKindInternalContinuous {
+		if len(in.Installments) > 0 {
+			return nil, custom_errors.New(400, custom_errors.ErrValidation, "โปรเจกต์ภายในไม่รองรับการแบ่งงวดชำระ")
+		}
+		if in.PlannedDeliveryDate != nil {
+			return nil, custom_errors.New(400, custom_errors.ErrValidation, "โปรเจกต์ภายในไม่บังคับวันส่งมอบ")
+		}
 	}
 
 	if in.ContractAmount.IsNegative() {
@@ -435,12 +502,42 @@ func (s *projectService) CanAccessProject(ctx context.Context, caller user.Calle
 	return p, nil
 }
 
+func (s *projectService) RequireContractFinanceRead(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.Project, error) {
+	p, err := s.CanAccessProject(ctx, caller, id)
+	if err != nil {
+		return nil, err
+	}
+	ok, err := s.canReadByVisibility(ctx, caller, id, p.ContractFinanceVisibility)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, custom_errors.New(403, custom_errors.ErrForbidden, "ไม่มีสิทธิ์ดูข้อมูลส่วนว่าจ้างของโครงการนี้")
+	}
+	return p, nil
+}
+
+func (s *projectService) RequireExpenseFinanceRead(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.Project, error) {
+	p, err := s.CanAccessProject(ctx, caller, id)
+	if err != nil {
+		return nil, err
+	}
+	ok, err := s.canReadByVisibility(ctx, caller, id, p.ExpenseFinanceVisibility)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, custom_errors.New(403, custom_errors.ErrForbidden, "ไม่มีสิทธิ์ดูข้อมูลส่วนค่าใช้จ่ายของโครงการนี้")
+	}
+	return p, nil
+}
+
 // -----------------------------------------------------------------------------
 // Internal helpers
 // -----------------------------------------------------------------------------
 
-// requireModifyAccess permits staff, the creator, or the current project lead.
-// Plain members cannot mutate projects.
+// requireModifyAccess permits staff, current lead, or assigned coordinator.
+// Plain members are read-only on project governance actions.
 func (s *projectService) requireModifyAccess(ctx context.Context, caller user.Caller, id uuid.UUID) (*project.Project, error) {
 	p, err := s.projectRepo.GetByID(ctx, id)
 	if err != nil {
@@ -449,7 +546,7 @@ func (s *projectService) requireModifyAccess(ctx context.Context, caller user.Ca
 	if p == nil {
 		return nil, custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบโปรเจกต์นี้")
 	}
-	if caller.IsStaff() || p.CreatedByUserID == caller.UserID {
+	if caller.IsStaff() {
 		return p, nil
 	}
 	lead, err := s.memberRepo.GetActiveLead(ctx, id)
@@ -459,7 +556,14 @@ func (s *projectService) requireModifyAccess(ctx context.Context, caller user.Ca
 	if lead != nil && lead.PersonID == caller.PersonID {
 		return p, nil
 	}
-	return nil, custom_errors.New(403, custom_errors.ErrForbidden, "เฉพาะผู้สร้าง หัวหน้าทีม หรือผู้ดูแลระบบเท่านั้นที่แก้ไขโปรเจกต์ได้")
+	isCoordinator, err := s.memberRepo.HasActiveRoleCode(ctx, id, caller.PersonID, projectCoordinatorRoleCode)
+	if err != nil {
+		return nil, err
+	}
+	if isCoordinator {
+		return p, nil
+	}
+	return nil, custom_errors.New(403, custom_errors.ErrForbidden, "เฉพาะหัวหน้าทีม, coordinator หรือผู้ดูแลระบบเท่านั้นที่แก้ไขโปรเจกต์ได้")
 }
 
 func isValidOpenStatus(s project.ProjectStatus) bool {
@@ -474,9 +578,20 @@ func isValidOpenStatus(s project.ProjectStatus) bool {
 	return false
 }
 
-func requiresClient(s project.ProjectStatus) bool {
+func requiresClient(s project.ProjectStatus, kind project.ProjectKind) bool {
+	if kind == project.ProjectKindInternalContinuous {
+		return false
+	}
 	switch s {
 	case project.ProjectStatusActive, project.ProjectStatusOnHold:
+		return true
+	}
+	return false
+}
+
+func isValidProjectKind(k project.ProjectKind) bool {
+	switch k {
+	case project.ProjectKindClientDelivery, project.ProjectKindInternalContinuous:
 		return true
 	}
 	return false
@@ -494,4 +609,41 @@ func isValidClosureReason(r project.ProjectClosureReason) bool {
 		return true
 	}
 	return false
+}
+
+func isValidFinanceVisibility(v project.FinanceVisibility) bool {
+	switch v {
+	case project.FinanceVisibilityAllMembers,
+		project.FinanceVisibilityLeadCoordinatorStaff,
+		project.FinanceVisibilityStaffOnly:
+		return true
+	}
+	return false
+}
+
+func (s *projectService) canReadByVisibility(ctx context.Context, caller user.Caller, projectID uuid.UUID, visibility project.FinanceVisibility) (bool, error) {
+	if caller.IsStaff() {
+		return true, nil
+	}
+	switch visibility {
+	case project.FinanceVisibilityAllMembers:
+		return true, nil
+	case project.FinanceVisibilityLeadCoordinatorStaff:
+		lead, err := s.memberRepo.GetActiveLead(ctx, projectID)
+		if err != nil {
+			return false, err
+		}
+		if lead != nil && lead.PersonID == caller.PersonID {
+			return true, nil
+		}
+		isCoordinator, err := s.memberRepo.HasActiveRoleCode(ctx, projectID, caller.PersonID, projectCoordinatorRoleCode)
+		if err != nil {
+			return false, err
+		}
+		return isCoordinator, nil
+	case project.FinanceVisibilityStaffOnly:
+		return false, nil
+	default:
+		return false, nil
+	}
 }

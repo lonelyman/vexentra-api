@@ -225,6 +225,13 @@ func (r *projectRepository) List(ctx context.Context, f project.ProjectFilter, p
 		}
 		q = q.Where("status IN ?", statuses)
 	}
+	if len(f.ProjectKinds) > 0 {
+		kinds := make([]string, len(f.ProjectKinds))
+		for i, k := range f.ProjectKinds {
+			kinds[i] = string(k)
+		}
+		q = q.Where("project_kind IN ?", kinds)
+	}
 	if f.CreatedByUserID != nil {
 		q = q.Where("created_by_user_id = ?", *f.CreatedByUserID)
 	}
@@ -273,17 +280,20 @@ func (r *projectRepository) Update(ctx context.Context, p *project.Project) erro
 		Model(&projectModel{}).
 		Where("id = ?", p.ID).
 		Updates(map[string]any{
-			"name":               m.Name,
-			"description":        m.Description,
-			"status":             m.Status,
-			"closure_reason":     m.ClosureReason,
-			"client_person_id":   m.ClientPersonID,
-			"client_name_raw":    m.ClientNameRaw,
-			"client_email_raw":   m.ClientEmailRaw,
-			"scheduled_start_at": m.ScheduledStartAt,
-			"deadline_at":        m.DeadlineAt,
-			"activated_at":       m.ActivatedAt,
-			"closed_at":          m.ClosedAt,
+			"project_kind":                m.Kind,
+			"name":                        m.Name,
+			"description":                 m.Description,
+			"status":                      m.Status,
+			"closure_reason":              m.ClosureReason,
+			"contract_finance_visibility": m.ContractFinanceVisibility,
+			"expense_finance_visibility":  m.ExpenseFinanceVisibility,
+			"client_person_id":            m.ClientPersonID,
+			"client_name_raw":             m.ClientNameRaw,
+			"client_email_raw":            m.ClientEmailRaw,
+			"scheduled_start_at":          m.ScheduledStartAt,
+			"deadline_at":                 m.DeadlineAt,
+			"activated_at":                m.ActivatedAt,
+			"closed_at":                   m.ClosedAt,
 		})
 	if result.Error != nil {
 		r.logger.Error("DB_UPDATE_PROJECT_ERROR", result.Error)

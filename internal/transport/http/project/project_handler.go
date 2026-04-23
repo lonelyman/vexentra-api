@@ -54,15 +54,23 @@ func (h *ProjectHandler) Create(c fiber.Ctx) error {
 	if err != nil {
 		return custom_errors.New(400, custom_errors.ErrValidation, "client_person_id ไม่ถูกต้อง")
 	}
+	initialLeadPersonID, err := parseUUIDPtr(req.InitialLeadPersonID)
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrValidation, "initial_lead_person_id ไม่ถูกต้อง")
+	}
 
 	p, svcErr := h.svc.Create(c.Context(), caller, projectsvc.CreateProjectInput{
-		Name:             req.Name,
-		Description:      req.Description,
-		ClientPersonID:   clientPersonID,
-		ClientNameRaw:    req.ClientNameRaw,
-		ClientEmailRaw:   req.ClientEmailRaw,
-		ScheduledStartAt: req.ScheduledStartAt,
-		DeadlineAt:       req.DeadlineAt,
+		Name:                      req.Name,
+		ProjectKind:               parseProjectKindPtr(req.ProjectKind),
+		Description:               req.Description,
+		ClientPersonID:            clientPersonID,
+		InitialLeadPersonID:       initialLeadPersonID,
+		ContractFinanceVisibility: parseFinanceVisibilityPtr(req.ContractFinanceVisibility),
+		ExpenseFinanceVisibility:  parseFinanceVisibilityPtr(req.ExpenseFinanceVisibility),
+		ClientNameRaw:             req.ClientNameRaw,
+		ClientEmailRaw:            req.ClientEmailRaw,
+		ScheduledStartAt:          req.ScheduledStartAt,
+		DeadlineAt:                req.DeadlineAt,
 	})
 	if svcErr != nil {
 		return svcErr
@@ -123,10 +131,20 @@ func (h *ProjectHandler) List(c fiber.Ctx) error {
 			}
 		}
 	}
+	var projectKinds []project.ProjectKind
+	if raw := strings.TrimSpace(c.Query("project_kind", "")); raw != "" {
+		for _, k := range strings.Split(raw, ",") {
+			k = strings.TrimSpace(strings.ToLower(k))
+			if k != "" {
+				projectKinds = append(projectKinds, project.ProjectKind(k))
+			}
+		}
+	}
 
 	filter := project.ProjectFilter{
-		Statuses: statuses,
-		Search:   strings.TrimSpace(c.Query("search", "")),
+		Statuses:     statuses,
+		ProjectKinds: projectKinds,
+		Search:       strings.TrimSpace(c.Query("search", "")),
 	}
 
 	items, total, svcErr := h.svc.List(c.Context(), caller, filter, project.Pagination{
@@ -252,14 +270,17 @@ func (h *ProjectHandler) Update(c fiber.Ctx) error {
 	}
 
 	p, svcErr := h.svc.Update(c.Context(), caller, id, projectsvc.UpdateProjectInput{
-		Name:             req.Name,
-		Description:      req.Description,
-		Status:           project.ProjectStatus(req.Status),
-		ClientPersonID:   clientPersonID,
-		ClientNameRaw:    req.ClientNameRaw,
-		ClientEmailRaw:   req.ClientEmailRaw,
-		ScheduledStartAt: req.ScheduledStartAt,
-		DeadlineAt:       req.DeadlineAt,
+		Name:                      req.Name,
+		ProjectKind:               parseProjectKindPtr(req.ProjectKind),
+		Description:               req.Description,
+		Status:                    project.ProjectStatus(req.Status),
+		ClientPersonID:            clientPersonID,
+		ContractFinanceVisibility: parseFinanceVisibilityPtr(req.ContractFinanceVisibility),
+		ExpenseFinanceVisibility:  parseFinanceVisibilityPtr(req.ExpenseFinanceVisibility),
+		ClientNameRaw:             req.ClientNameRaw,
+		ClientEmailRaw:            req.ClientEmailRaw,
+		ScheduledStartAt:          req.ScheduledStartAt,
+		DeadlineAt:                req.DeadlineAt,
 	})
 	if svcErr != nil {
 		return svcErr

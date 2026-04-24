@@ -8,16 +8,17 @@ import (
 
 // Profile stores extended personal information for a person — 1:1 with persons table.
 type Profile struct {
-	ID          uuid.UUID
-	PersonID    uuid.UUID
-	DisplayName string // ชื่อที่แสดงต่อสาธารณะ
-	Headline    string // e.g. "Senior Go Engineer"
-	Bio         string // multi-line about me
-	Location    string // e.g. "Bangkok, TH"
-	AvatarURL   string
-	SocialLinks []SocialLink // loaded via 1:many join
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID           uuid.UUID
+	PersonID     uuid.UUID
+	DisplayName  string // ชื่อที่แสดงต่อสาธารณะ
+	Headline     string // e.g. "Senior Go Engineer"
+	Bio          string // multi-line about me
+	Location     string // e.g. "Bangkok, TH"
+	AvatarFileID *uuid.UUID
+	AvatarURL    string       // resolved signed URL for API responses
+	SocialLinks  []SocialLink // loaded via 1:many join
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // SocialLink is a single social/contact link belonging to a person's profile.

@@ -28,4 +28,17 @@ type ProjectMemberRepository interface {
 
 	// Remove soft-deletes the membership. Service must refuse to remove the sole lead.
 	Remove(ctx context.Context, id uuid.UUID) error
+
+	// ListRoleMaster returns role definitions used for per-project assignments.
+	ListRoleMaster(ctx context.Context, activeOnly bool) ([]*ProjectRole, error)
+
+	// CountActiveRoleMasterByIDs validates role IDs against active master rows.
+	CountActiveRoleMasterByIDs(ctx context.Context, roleIDs []uuid.UUID) (int64, error)
+
+	// ReplaceMemberRoles soft-deletes current active assignments and inserts the new set.
+	// If roleIDs is empty, this clears all roles for the member.
+	ReplaceMemberRoles(ctx context.Context, memberID, assignedByUserID uuid.UUID, roleIDs []uuid.UUID, primaryRoleID *uuid.UUID) error
+
+	// HasActiveRoleCode checks if a person has an active assignment with given role code in a project.
+	HasActiveRoleCode(ctx context.Context, projectID, personID uuid.UUID, roleCode string) (bool, error)
 }

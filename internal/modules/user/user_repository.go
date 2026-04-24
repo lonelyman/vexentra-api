@@ -37,14 +37,16 @@ type UserRepository interface {
 	GetByEmailWithLocalAuth(ctx context.Context, email string) (*User, *UserAuth, error)
 	UpdateLocalAuthSecret(ctx context.Context, userID uuid.UUID, secret string) error
 	UpdateAuthRefreshToken(ctx context.Context, authID uuid.UUID, token *string) error
+	SetForcePasswordChange(ctx context.Context, userID uuid.UUID, required bool) error
+	MarkPasswordChanged(ctx context.Context, userID uuid.UUID, changedAt time.Time) error
 
 	// ─── Pagination ──────────────────────────────────────────────────────────
 	// ListOffset returns a page of users for offset-based pagination.
 	// Returns total count of all active users (for TotalPages calculation).
-	ListOffset(ctx context.Context, limit, offset int) ([]*User, int64, error)
+	ListOffset(ctx context.Context, limit, offset int, search, status string) ([]*User, int64, error)
 
 	// ListAfterCursor returns users whose ID > afterID, ordered by ID ASC.
 	// Fetch limit+1 to detect hasMore — caller trims the extra item.
 	// Pass uuid.Nil (zero value) to start from the beginning.
-	ListAfterCursor(ctx context.Context, afterID uuid.UUID, limit int) ([]*User, error)
+	ListAfterCursor(ctx context.Context, afterID uuid.UUID, limit int, search, status string) ([]*User, error)
 }

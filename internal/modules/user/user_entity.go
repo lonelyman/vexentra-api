@@ -41,6 +41,9 @@ type User struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time // nil = active; non-nil = soft deleted
+	// Password policy flags
+	ForcePasswordChange bool
+	PasswordChangedAt   *time.Time
 
 	// Email Verification
 	IsEmailVerified                 bool

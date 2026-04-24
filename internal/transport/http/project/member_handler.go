@@ -48,8 +48,16 @@ func (h *MemberHandler) Add(c fiber.Ctx) error {
 	if err != nil {
 		return custom_errors.New(400, custom_errors.ErrValidation, "person_id ไม่ถูกต้อง")
 	}
+	roleIDs, err := parseUUIDList(req.RoleIDs)
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrValidation, "role_ids ไม่ถูกต้อง")
+	}
+	primaryRoleID, err := parseUUIDPtr(req.PrimaryRoleID)
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrValidation, "primary_role_id ไม่ถูกต้อง")
+	}
 
-	m, svcErr := h.svc.Add(c.Context(), caller, projectID, personID)
+	m, svcErr := h.svc.Add(c.Context(), caller, projectID, personID, roleIDs, primaryRoleID)
 	if svcErr != nil {
 		return svcErr
 	}
@@ -126,4 +134,79 @@ func (h *MemberHandler) TransferLead(c fiber.Ctx) error {
 	}
 	h.logger.Info("Project lead transferred", "projectID", projectID, "toMemberID", memberID)
 	return presenter.RenderItem(c, fiber.Map{"message": "โอนสิทธิ์หัวหน้าทีมสำเร็จ"})
+}
+
+// ListRoleMaster — GET /api/v1/project-member-roles
+func (h *MemberHandler) ListRoleMaster(c fiber.Ctx) error {
+	caller, err := auth.GetCaller(c)
+	if err != nil {
+		return err
+	}
+	items, svcErr := h.svc.ListRoleMaster(c.Context(), caller)
+	if svcErr != nil {
+		return svcErr
+	}
+	resp := make([]ProjectRoleMasterResponse, len(items))
+	for i := range items {
+		resp[i] = NewProjectRoleMasterResponse(items[i])
+	}
+	return presenter.RenderList(c, resp)
+}
+
+// UpdateMemberRoles — PUT /api/v1/projects/:id/members/:memberID/roles
+func (h *MemberHandler) UpdateMemberRoles(c fiber.Ctx) error {
+	caller, err := auth.GetCaller(c)
+	if err != nil {
+		return err
+	}
+	projectID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "project id ไม่ถูกต้อง")
+	}
+	memberID, err := uuid.Parse(c.Params("memberID"))
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrInvalidFormat, "member id ไม่ถูกต้อง")
+	}
+
+	req := new(UpdateMemberRolesRequest)
+	if err := c.Bind().Body(req); err != nil {
+		return custom_errors.New(400, "INVALID_JSON", "รูปแบบ JSON ไม่ถูกต้อง")
+	}
+	if v := validation.Validate(h.validate, req); !v.IsValid {
+		return custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", v.Errors)
+	}
+
+	roleIDs, err := parseUUIDList(req.RoleIDs)
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrValidation, "role_ids ไม่ถูกต้อง")
+	}
+	primaryRoleID, err := parseUUIDPtr(req.PrimaryRoleID)
+	if err != nil {
+		return custom_errors.New(400, custom_errors.ErrValidation, "primary_role_id ไม่ถูกต้อง")
+	}
+
+	if svcErr := h.svc.SetMemberRoles(c.Context(), caller, projectID, memberID, roleIDs, primaryRoleID); svcErr != nil {
+		return svcErr
+	}
+	return presenter.RenderItem(c, fiber.Map{"message": "อัปเดตบทบาทสมาชิกสำเร็จ"})
+}
+
+func parseUUIDList(items []string) ([]uuid.UUID, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+	out := make([]uuid.UUID, 0, len(items))
+	seen := make(map[uuid.UUID]struct{}, len(items))
+	for _, raw := range items {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out, nil
 }

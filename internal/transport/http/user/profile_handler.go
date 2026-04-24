@@ -49,6 +49,23 @@ func (h *ProfileHandler) GetShowcase(c fiber.Ctx) error {
 	return presenter.RenderItem(c, toFullProfileResponse(result))
 }
 
+// GetShowcaseByPersonID — GET /api/v1/showcase/:id
+// Public: returns the full profile for a specific person_id.
+// No login required; only published portfolio items are returned.
+func (h *ProfileHandler) GetShowcaseByPersonID(c fiber.Ctx) error {
+	targetID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "person ID ไม่ถูกต้อง"))
+	}
+
+	result, svcErr := h.svc.GetFullProfile(c.Context(), targetID, false)
+	if svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toFullProfileResponse(result))
+}
+
 // GetMyProfile — GET /api/v1/me/profile
 // Protected: returns the full profile of the currently authenticated user.
 func (h *ProfileHandler) GetMyProfile(c fiber.Ctx) error {
@@ -102,7 +119,6 @@ func (h *ProfileHandler) UpsertProfile(c fiber.Ctx) error {
 		Headline:    req.Headline,
 		Bio:         req.Bio,
 		Location:    req.Location,
-		AvatarURL:   req.AvatarURL,
 	}
 
 	if svcErr := h.svc.UpsertProfile(c.Context(), personID, p); svcErr != nil {
@@ -138,6 +154,37 @@ func (h *ProfileHandler) AddSkill(c fiber.Ctx) error {
 	return presenter.RenderItem(c, toSkillResponse(s), fiber.StatusCreated)
 }
 
+// UpdateSkill — PUT /api/v1/me/skills/:skillID
+func (h *ProfileHandler) UpdateSkill(c fiber.Ctx) error {
+	personID, err := ownerPersonID(c)
+	if err != nil {
+		return presenter.RenderError(c, err)
+	}
+
+	skillID, parseErr := uuid.Parse(c.Params("skillID"))
+	if parseErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "skill ID ไม่ถูกต้อง"))
+	}
+
+	var req AddSkillRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+
+	s := &user.Skill{
+		Name:        req.Name,
+		Category:    req.Category,
+		Proficiency: req.Proficiency,
+		SortOrder:   req.SortOrder,
+	}
+
+	if svcErr := h.svc.UpdateSkill(c.Context(), skillID, personID, s); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toSkillResponse(s))
+}
+
 // AdminAddSkill — POST /api/v1/users/:id/skills (admin only)
 func (h *ProfileHandler) AdminAddSkill(c fiber.Ctx) error {
 	userID, parseErr := uuid.Parse(c.Params("id"))
@@ -165,6 +212,56 @@ func (h *ProfileHandler) AdminAddSkill(c fiber.Ctx) error {
 	}
 
 	return presenter.RenderItem(c, toSkillResponse(s), fiber.StatusCreated)
+}
+
+// AdminUpdateSkill — PUT /api/v1/users/:id/skills/:skillID (admin only)
+func (h *ProfileHandler) AdminUpdateSkill(c fiber.Ctx) error {
+	userID, parseUserErr := uuid.Parse(c.Params("id"))
+	if parseUserErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+	skillID, parseSkillErr := uuid.Parse(c.Params("skillID"))
+	if parseSkillErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "skill ID ไม่ถูกต้อง"))
+	}
+
+	var req AddSkillRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, &req); !vResult.IsValid {
+		return custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors)
+	}
+
+	s := &user.Skill{
+		Name:        req.Name,
+		Category:    req.Category,
+		Proficiency: req.Proficiency,
+		SortOrder:   req.SortOrder,
+	}
+
+	if svcErr := h.svc.AdminUpdateSkill(c.Context(), userID, skillID, s); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toSkillResponse(s))
+}
+
+// AdminRemoveSkill — DELETE /api/v1/users/:id/skills/:skillID (admin only)
+func (h *ProfileHandler) AdminRemoveSkill(c fiber.Ctx) error {
+	userID, parseUserErr := uuid.Parse(c.Params("id"))
+	if parseUserErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+	skillID, parseSkillErr := uuid.Parse(c.Params("skillID"))
+	if parseSkillErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "skill ID ไม่ถูกต้อง"))
+	}
+
+	if svcErr := h.svc.AdminRemoveSkill(c.Context(), userID, skillID); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // RemoveSkill — DELETE /api/v1/me/skills/:skillID
@@ -363,6 +460,52 @@ func (h *ProfileHandler) AdminAddPortfolioItem(c fiber.Ctx) error {
 	return presenter.RenderItem(c, toPortfolioItemResponse(item), fiber.StatusCreated)
 }
 
+// AdminUpdatePortfolioItem — PUT /api/v1/users/:id/portfolio/:itemID (admin only)
+func (h *ProfileHandler) AdminUpdatePortfolioItem(c fiber.Ctx) error {
+	userID, parseUserErr := uuid.Parse(c.Params("id"))
+	if parseUserErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+
+	itemID, parseItemErr := uuid.Parse(c.Params("itemID"))
+	if parseItemErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "portfolio item ID ไม่ถูกต้อง"))
+	}
+
+	var req AddPortfolioItemRequest
+	if bindErr := c.Bind().JSON(&req); bindErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "รูปแบบข้อมูลไม่ถูกต้อง"))
+	}
+	if vResult := validation.Validate(h.validate, &req); !vResult.IsValid {
+		return custom_errors.New(400, custom_errors.ErrValidation, "ข้อมูลไม่ถูกต้อง", vResult.Errors)
+	}
+
+	item := req.ToEntity()
+	if svcErr := h.svc.AdminUpdatePortfolioItem(c.Context(), userID, itemID, item, req.Tags); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+
+	return presenter.RenderItem(c, toPortfolioItemResponse(item))
+}
+
+// AdminRemovePortfolioItem — DELETE /api/v1/users/:id/portfolio/:itemID (admin only)
+func (h *ProfileHandler) AdminRemovePortfolioItem(c fiber.Ctx) error {
+	userID, parseUserErr := uuid.Parse(c.Params("id"))
+	if parseUserErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "user ID ไม่ถูกต้อง"))
+	}
+
+	itemID, parseItemErr := uuid.Parse(c.Params("itemID"))
+	if parseItemErr != nil {
+		return presenter.RenderError(c, custom_errors.New(400, custom_errors.ErrInvalidFormat, "portfolio item ID ไม่ถูกต้อง"))
+	}
+
+	if svcErr := h.svc.AdminRemovePortfolioItem(c.Context(), userID, itemID); svcErr != nil {
+		return presenter.RenderError(c, svcErr)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 // UpdatePortfolioItem — PUT /api/v1/me/portfolio/:itemID
 func (h *ProfileHandler) UpdatePortfolioItem(c fiber.Ctx) error {
 	personID, err := ownerPersonID(c)
@@ -531,7 +674,6 @@ func (h *ProfileHandler) AdminUpsertProfile(c fiber.Ctx) error {
 		Headline:    req.Headline,
 		Bio:         req.Bio,
 		Location:    req.Location,
-		AvatarURL:   req.AvatarURL,
 	}
 	if svcErr := h.svc.AdminUpsertProfile(c.Context(), targetID, p); svcErr != nil {
 		return presenter.RenderError(c, svcErr)

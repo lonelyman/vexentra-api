@@ -210,6 +210,14 @@ func RenderList(c fiber.Ctx, items any, pagination ...any) error {
 // RenderError sends a structured error response derived from AppError.
 func RenderError(c fiber.Ctx, err error) error {
 	if appErr, ok := err.(*custom_errors.AppError); ok {
+		if appErr == nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{
+				Error: ErrorDetail{
+					Code:    "INTERNAL_SERVER_ERROR",
+					Message: "An unexpected error occurred",
+				},
+			})
+		}
 		return c.Status(appErr.HTTPStatus).JSON(ErrorResponse{
 			Error: ErrorDetail{
 				Code:    appErr.Code,

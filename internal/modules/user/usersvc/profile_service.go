@@ -3,11 +3,14 @@ package usersvc
 import (
 	"context"
 	"strings"
+	"time"
 
+	filemod "vexentra-api/internal/modules/file"
 	"vexentra-api/internal/modules/socialplatform"
 	"vexentra-api/internal/modules/user"
 	"vexentra-api/pkg/custom_errors"
 	"vexentra-api/pkg/logger"
+	"vexentra-api/pkg/storage"
 
 	"github.com/google/uuid"
 )
@@ -29,12 +32,17 @@ type ProfileService interface {
 	UpsertProfile(ctx context.Context, personID uuid.UUID, p *user.Profile) error
 	AdminUpsertProfile(ctx context.Context, userID uuid.UUID, p *user.Profile) error
 	AdminAddSkill(ctx context.Context, userID uuid.UUID, s *user.Skill) error
+	AdminUpdateSkill(ctx context.Context, userID, skillID uuid.UUID, s *user.Skill) error
+	AdminRemoveSkill(ctx context.Context, userID, skillID uuid.UUID) error
 	AdminAddExperience(ctx context.Context, userID uuid.UUID, e *user.Experience) error
 	AdminUpdateExperience(ctx context.Context, userID, expID uuid.UUID, e *user.Experience) error
 	AdminRemoveExperience(ctx context.Context, userID, expID uuid.UUID) error
 	AdminAddPortfolioItem(ctx context.Context, userID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
+	AdminUpdatePortfolioItem(ctx context.Context, userID, itemID uuid.UUID, item *user.PortfolioItem, tagNames []string) error
+	AdminRemovePortfolioItem(ctx context.Context, userID, itemID uuid.UUID) error
 
 	AddSkill(ctx context.Context, personID uuid.UUID, s *user.Skill) error
+	UpdateSkill(ctx context.Context, skillID, personID uuid.UUID, s *user.Skill) error
 	RemoveSkill(ctx context.Context, skillID, personID uuid.UUID) error
 
 	AddExperience(ctx context.Context, personID uuid.UUID, e *user.Experience) error
@@ -53,18 +61,32 @@ type ProfileService interface {
 type profileService struct {
 	userRepo           user.UserRepository
 	profileRepo        user.ProfileRepository
+	fileRepo           filemod.Repository
 	socialPlatformRepo socialplatform.SocialPlatformRepository
+	storage            storage.ObjectStorage
+	presignTTL         time.Duration
 	logger             logger.Logger
 }
 
-func NewProfileService(userRepo user.UserRepository, profileRepo user.ProfileRepository, socialPlatformRepo socialplatform.SocialPlatformRepository, l logger.Logger) ProfileService {
+func NewProfileService(
+	userRepo user.UserRepository,
+	profileRepo user.ProfileRepository,
+	fileRepo filemod.Repository,
+	socialPlatformRepo socialplatform.SocialPlatformRepository,
+	storage storage.ObjectStorage,
+	presignTTL time.Duration,
+	l logger.Logger,
+) ProfileService {
 	if l == nil {
 		l = logger.Get()
 	}
 	return &profileService{
 		userRepo:           userRepo,
 		profileRepo:        profileRepo,
+		fileRepo:           fileRepo,
 		socialPlatformRepo: socialPlatformRepo,
+		storage:            storage,
+		presignTTL:         presignTTL,
 		logger:             l,
 	}
 }
@@ -100,6 +122,13 @@ func (s *profileService) GetFullProfile(ctx context.Context, personID uuid.UUID,
 	}
 
 	if profile != nil {
+		if profile.AvatarFileID != nil {
+			if f, ferr := s.fileRepo.GetFileByID(ctx, *profile.AvatarFileID); ferr == nil && f != nil {
+				if signedURL, uerr := s.storage.PresignGet(ctx, f.ObjectKey, s.presignTTL); uerr == nil {
+					profile.AvatarURL = signedURL
+				}
+			}
+		}
 		links, err := s.profileRepo.ListSocialLinks(ctx, personID)
 		if err != nil {
 			return nil, err
@@ -127,6 +156,12 @@ func (s *profileService) UpsertProfile(ctx context.Context, personID uuid.UUID, 
 func (s *profileService) AddSkill(ctx context.Context, personID uuid.UUID, skill *user.Skill) error {
 	skill.PersonID = personID
 	return s.profileRepo.CreateSkill(ctx, skill)
+}
+
+func (s *profileService) UpdateSkill(ctx context.Context, skillID, personID uuid.UUID, skill *user.Skill) error {
+	skill.ID = skillID
+	skill.PersonID = personID
+	return s.profileRepo.UpdateSkill(ctx, skill)
 }
 
 func (s *profileService) RemoveSkill(ctx context.Context, skillID, personID uuid.UUID) error {
@@ -274,6 +309,24 @@ func (s *profileService) AdminAddSkill(ctx context.Context, userID uuid.UUID, sk
 	return s.profileRepo.CreateSkill(ctx, skill)
 }
 
+func (s *profileService) AdminUpdateSkill(ctx context.Context, userID, skillID uuid.UUID, skill *user.Skill) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	skill.ID = skillID
+	skill.PersonID = personID
+	return s.profileRepo.UpdateSkill(ctx, skill)
+}
+
+func (s *profileService) AdminRemoveSkill(ctx context.Context, userID, skillID uuid.UUID) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return s.profileRepo.DeleteSkill(ctx, skillID, personID)
+}
+
 func (s *profileService) AdminAddExperience(ctx context.Context, userID uuid.UUID, e *user.Experience) error {
 	personID, err := s.personIDByUserID(ctx, userID)
 	if err != nil {
@@ -317,6 +370,36 @@ func (s *profileService) AdminAddPortfolioItem(ctx context.Context, userID uuid.
 		return err
 	}
 	return s.syncTags(ctx, item, tagNames)
+}
+
+func (s *profileService) AdminUpdatePortfolioItem(ctx context.Context, userID, itemID uuid.UUID, item *user.PortfolioItem, tagNames []string) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	item.ID = itemID
+	item.PersonID = personID
+	if item.Slug == "" {
+		item.Slug = slugify(item.Title)
+	}
+
+	if err := s.profileRepo.UpdatePortfolioItem(ctx, item); err != nil {
+		return err
+	}
+
+	if tagNames != nil {
+		return s.syncTags(ctx, item, tagNames)
+	}
+	return nil
+}
+
+func (s *profileService) AdminRemovePortfolioItem(ctx context.Context, userID, itemID uuid.UUID) error {
+	personID, err := s.personIDByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return s.profileRepo.DeletePortfolioItem(ctx, itemID, personID)
 }
 
 func (s *profileService) personIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {

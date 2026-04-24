@@ -51,7 +51,11 @@ func (r *projectMemberRepository) GetByID(ctx context.Context, id uuid.UUID) (*p
 		r.logger.Error("DB_GET_PROJECT_MEMBER_ERROR", err)
 		return nil, err
 	}
-	return m.ToEntity(), nil
+	items := []*project.ProjectMember{m.ToEntity()}
+	if err := r.attachRoles(ctx, items); err != nil {
+		return nil, err
+	}
+	return items[0], nil
 }
 
 func (r *projectMemberRepository) GetActiveByProjectAndPerson(ctx context.Context, projectID, personID uuid.UUID) (*project.ProjectMember, error) {
@@ -82,6 +86,9 @@ func (r *projectMemberRepository) ListByProject(ctx context.Context, projectID u
 	result := make([]*project.ProjectMember, len(models))
 	for i := range models {
 		result[i] = models[i].ToEntity()
+	}
+	if err := r.attachRoles(ctx, result); err != nil {
+		return nil, err
 	}
 	return result, nil
 }
@@ -135,6 +142,159 @@ func (r *projectMemberRepository) Remove(ctx context.Context, id uuid.UUID) erro
 	}
 	if result.RowsAffected == 0 {
 		return custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบสมาชิกนี้")
+	}
+	return nil
+}
+
+func (r *projectMemberRepository) ListRoleMaster(ctx context.Context, activeOnly bool) ([]*project.ProjectRole, error) {
+	query := pgtx.DB(ctx, r.db).WithContext(ctx).Model(&projectRoleMasterModel{})
+	if activeOnly {
+		query = query.Where("is_active = ?", true)
+	}
+	var rows []projectRoleMasterModel
+	if err := query.Order("sort_order ASC, name_th ASC").Find(&rows).Error; err != nil {
+		r.logger.Error("DB_LIST_PROJECT_ROLE_MASTER_ERROR", err)
+		return nil, err
+	}
+	items := make([]*project.ProjectRole, len(rows))
+	for i := range rows {
+		items[i] = rows[i].ToEntity()
+	}
+	return items, nil
+}
+
+func (r *projectMemberRepository) CountActiveRoleMasterByIDs(ctx context.Context, roleIDs []uuid.UUID) (int64, error) {
+	if len(roleIDs) == 0 {
+		return 0, nil
+	}
+	var count int64
+	if err := pgtx.DB(ctx, r.db).WithContext(ctx).
+		Model(&projectRoleMasterModel{}).
+		Where("id IN ? AND is_active = ?", roleIDs, true).
+		Count(&count).Error; err != nil {
+		r.logger.Error("DB_COUNT_PROJECT_ROLE_MASTER_ERROR", err)
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *projectMemberRepository) ReplaceMemberRoles(ctx context.Context, memberID, assignedByUserID uuid.UUID, roleIDs []uuid.UUID, primaryRoleID *uuid.UUID) error {
+	uniqueRoleIDs := make([]uuid.UUID, 0, len(roleIDs))
+	seen := make(map[uuid.UUID]struct{}, len(roleIDs))
+	for _, id := range roleIDs {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniqueRoleIDs = append(uniqueRoleIDs, id)
+	}
+
+	return pgtx.DB(ctx, r.db).WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&projectMemberRoleAssignmentModel{}).
+			Where("project_member_id = ? AND deleted_at IS NULL", memberID).
+			Updates(map[string]any{
+				"deleted_at": gorm.Expr("now()"),
+				"updated_at": gorm.Expr("now()"),
+			}).Error; err != nil {
+			r.logger.Error("DB_CLEAR_MEMBER_ROLES_ERROR", err)
+			return err
+		}
+
+		if len(uniqueRoleIDs) == 0 {
+			return nil
+		}
+
+		rows := make([]projectMemberRoleAssignmentModel, 0, len(uniqueRoleIDs))
+		for _, roleID := range uniqueRoleIDs {
+			id, err := uuid.NewV7()
+			if err != nil {
+				return custom_errors.NewInternalError("ไม่สามารถสร้าง ID ได้")
+			}
+			isPrimary := primaryRoleID != nil && *primaryRoleID == roleID
+			rows = append(rows, projectMemberRoleAssignmentModel{
+				ID:               id,
+				ProjectMemberID:  memberID,
+				RoleID:           roleID,
+				IsPrimary:        isPrimary,
+				AssignedByUserID: assignedByUserID,
+			})
+		}
+
+		if err := tx.Create(&rows).Error; err != nil {
+			r.logger.Error("DB_INSERT_MEMBER_ROLES_ERROR", err)
+			return err
+		}
+		return nil
+	})
+}
+
+func (r *projectMemberRepository) HasActiveRoleCode(ctx context.Context, projectID, personID uuid.UUID, roleCode string) (bool, error) {
+	var count int64
+	if err := pgtx.DB(ctx, r.db).WithContext(ctx).
+		Table("project_member_role_assignments AS pmra").
+		Joins("JOIN project_members AS pm ON pm.id = pmra.project_member_id AND pm.deleted_at IS NULL").
+		Joins("JOIN project_role_master AS prm ON prm.id = pmra.role_id AND prm.deleted_at IS NULL").
+		Where("pm.project_id = ? AND pm.person_id = ?", projectID, personID).
+		Where("pmra.deleted_at IS NULL AND prm.is_active = ? AND prm.code = ?", true, roleCode).
+		Count(&count).Error; err != nil {
+		r.logger.Error("DB_CHECK_MEMBER_ROLE_CODE_ERROR", err)
+		return false, err
+	}
+	return count > 0, nil
+}
+
+type memberRoleJoinRow struct {
+	AssignmentID uuid.UUID `gorm:"column:assignment_id"`
+	MemberID     uuid.UUID `gorm:"column:member_id"`
+	RoleID       uuid.UUID `gorm:"column:role_id"`
+	Code         string    `gorm:"column:code"`
+	NameTH       string    `gorm:"column:name_th"`
+	NameEN       string    `gorm:"column:name_en"`
+	IsPrimary    bool      `gorm:"column:is_primary"`
+}
+
+func (r *projectMemberRepository) attachRoles(ctx context.Context, members []*project.ProjectMember) error {
+	if len(members) == 0 {
+		return nil
+	}
+	memberIDs := make([]uuid.UUID, 0, len(members))
+	for _, m := range members {
+		memberIDs = append(memberIDs, m.ID)
+	}
+
+	var rows []memberRoleJoinRow
+	if err := pgtx.DB(ctx, r.db).WithContext(ctx).
+		Table("project_member_role_assignments AS pmra").
+		Select(
+			"pmra.id AS assignment_id",
+			"pmra.project_member_id AS member_id",
+			"pmra.role_id AS role_id",
+			"prm.code AS code",
+			"prm.name_th AS name_th",
+			"prm.name_en AS name_en",
+			"pmra.is_primary AS is_primary",
+		).
+		Joins("JOIN project_role_master AS prm ON prm.id = pmra.role_id AND prm.deleted_at IS NULL").
+		Where("pmra.project_member_id IN ? AND pmra.deleted_at IS NULL", memberIDs).
+		Order("pmra.project_member_id ASC, pmra.is_primary DESC, prm.sort_order ASC, pmra.created_at ASC").
+		Find(&rows).Error; err != nil {
+		r.logger.Error("DB_LIST_MEMBER_ROLE_ASSIGNMENTS_ERROR", err)
+		return err
+	}
+
+	byMember := make(map[uuid.UUID][]project.ProjectMemberRole, len(memberIDs))
+	for _, row := range rows {
+		byMember[row.MemberID] = append(byMember[row.MemberID], project.ProjectMemberRole{
+			AssignmentID: row.AssignmentID,
+			RoleID:       row.RoleID,
+			Code:         row.Code,
+			NameTH:       row.NameTH,
+			NameEN:       row.NameEN,
+			IsPrimary:    row.IsPrimary,
+		})
+	}
+	for i := range members {
+		members[i].Roles = byMember[members[i].ID]
 	}
 	return nil
 }

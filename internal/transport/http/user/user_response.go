@@ -6,28 +6,32 @@ import (
 )
 
 type UserResponse struct {
-	ID              string     `json:"id"`
-	PersonID        string     `json:"person_id"`
-	Username        string     `json:"username"`
-	Email           string     `json:"email"`
-	Role            string     `json:"role"`
-	Status          string     `json:"status"`
-	IsEmailVerified bool       `json:"is_email_verified"`
-	LastLoginAt     *time.Time `json:"last_login_at"`
-	CreatedAt       time.Time  `json:"created_at"`
+	ID                  string     `json:"id"`
+	PersonID            string     `json:"person_id"`
+	Username            string     `json:"username"`
+	Email               string     `json:"email"`
+	Role                string     `json:"role"`
+	Status              string     `json:"status"`
+	IsEmailVerified     bool       `json:"is_email_verified"`
+	ForcePasswordChange bool       `json:"force_password_change"`
+	PasswordChangedAt   *time.Time `json:"password_changed_at"`
+	LastLoginAt         *time.Time `json:"last_login_at"`
+	CreatedAt           time.Time  `json:"created_at"`
 }
 
 func NewUserResponse(u *user.User) UserResponse {
 	return UserResponse{
-		ID:              u.ID.String(),
-		PersonID:        u.PersonID.String(),
-		Username:        u.Username,
-		Email:           u.Email,
-		Role:            u.Role,
-		Status:          u.Status,
-		IsEmailVerified: u.IsEmailVerified,
-		LastLoginAt:     u.LastLoginAt,
-		CreatedAt:       u.CreatedAt,
+		ID:                  u.ID.String(),
+		PersonID:            u.PersonID.String(),
+		Username:            u.Username,
+		Email:               u.Email,
+		Role:                u.Role,
+		Status:              u.Status,
+		IsEmailVerified:     u.IsEmailVerified,
+		ForcePasswordChange: u.ForcePasswordChange,
+		PasswordChangedAt:   u.PasswordChangedAt,
+		LastLoginAt:         u.LastLoginAt,
+		CreatedAt:           u.CreatedAt,
 	}
 }
 

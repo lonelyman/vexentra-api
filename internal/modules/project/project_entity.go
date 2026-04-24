@@ -39,6 +39,21 @@ type ProjectStatusMeta struct {
 	IsActive       bool
 }
 
+type ProjectKind string
+
+const (
+	ProjectKindClientDelivery     ProjectKind = "client_delivery"
+	ProjectKindInternalContinuous ProjectKind = "internal_continuous"
+)
+
+type FinanceVisibility string
+
+const (
+	FinanceVisibilityAllMembers           FinanceVisibility = "all_members"
+	FinanceVisibilityLeadCoordinatorStaff FinanceVisibility = "lead_coordinator_staff"
+	FinanceVisibilityStaffOnly            FinanceVisibility = "staff_only"
+)
+
 // ProjectClosureReason records why a project reached the terminal `closed` state.
 // Required when Status == ProjectStatusClosed; must be nil otherwise (DB CHECK enforces bijection).
 type ProjectClosureReason string
@@ -63,8 +78,11 @@ type Project struct {
 	Name        string
 	Description *string
 
-	Status        ProjectStatus
-	ClosureReason *ProjectClosureReason
+	Kind                      ProjectKind
+	Status                    ProjectStatus
+	ClosureReason             *ProjectClosureReason
+	ContractFinanceVisibility FinanceVisibility
+	ExpenseFinanceVisibility  FinanceVisibility
 
 	ClientPersonID *uuid.UUID
 	ClientNameRaw  *string

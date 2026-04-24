@@ -11,6 +11,7 @@ import (
 // (joined via project_members, WHERE deleted_at IS NULL). This is the primary lever for "my projects" views.
 type ProjectFilter struct {
 	Statuses        []ProjectStatus // OR-match; empty = all statuses
+	ProjectKinds    []ProjectKind   // OR-match; empty = all kinds
 	CreatedByUserID *uuid.UUID      // exact match on creator
 	MemberPersonID  *uuid.UUID      // active membership filter
 	ClientPersonID  *uuid.UUID      // exact match on client

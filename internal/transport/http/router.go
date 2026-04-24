@@ -4,6 +4,7 @@ package http
 import (
 	authhdl "vexentra-api/internal/transport/http/auth"
 	dashboardhdl "vexentra-api/internal/transport/http/dashboard"
+	filehdl "vexentra-api/internal/transport/http/file"
 	healthhdl "vexentra-api/internal/transport/http/health"
 	"vexentra-api/internal/transport/http/middlewares"
 	projecthdl "vexentra-api/internal/transport/http/project"
@@ -28,6 +29,7 @@ type Handlers struct {
 	TxCategory     *txcategoryhdl.CategoryHandler
 	Dashboard      *dashboardhdl.DashboardHandler
 	Task           *taskhdl.TaskHandler
+	Upload         *filehdl.UploadHandler
 	AuthSvc        auth.AuthService
 }
 
@@ -50,6 +52,8 @@ func SetupRouter(app *fiber.App, h Handlers) {
 
 	// Showcase — no login required; returns profile of the pre-configured showcase user
 	api.Get("/showcase", h.Profile.GetShowcase)
+	// Public showcase by person_id (UUID)
+	api.Get("/showcase/:id", h.Profile.GetShowcaseByPersonID)
 
 	// Social Platforms — master data (public read)
 	api.Get("/social-platforms", h.SocialPlatform.List)
@@ -61,13 +65,18 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Get("/users", middlewares.RoleMiddleware("admin"), h.User.ListUsers)
 	protected.Get("/users/:id", middlewares.RoleMiddleware("admin"), h.User.AdminGetUser)
 	protected.Patch("/users/:id", middlewares.RoleMiddleware("admin"), h.User.AdminUpdateUser)
+	protected.Post("/users/:id/resend-verify", middlewares.RoleMiddleware("admin"), h.User.AdminResendVerifyEmail)
 	protected.Put("/users/:id/password", middlewares.RoleMiddleware("admin"), h.User.AdminSetPassword)
 	protected.Put("/users/:id/profile", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpsertProfile)
 	protected.Post("/users/:id/skills", middlewares.RoleMiddleware("admin"), h.Profile.AdminAddSkill)
+	protected.Put("/users/:id/skills/:skillID", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpdateSkill)
+	protected.Delete("/users/:id/skills/:skillID", middlewares.RoleMiddleware("admin"), h.Profile.AdminRemoveSkill)
 	protected.Post("/users/:id/experiences", middlewares.RoleMiddleware("admin"), h.Profile.AdminAddExperience)
 	protected.Put("/users/:id/experiences/:expID", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpdateExperience)
 	protected.Delete("/users/:id/experiences/:expID", middlewares.RoleMiddleware("admin"), h.Profile.AdminRemoveExperience)
 	protected.Post("/users/:id/portfolio", middlewares.RoleMiddleware("admin"), h.Profile.AdminAddPortfolioItem)
+	protected.Put("/users/:id/portfolio/:itemID", middlewares.RoleMiddleware("admin"), h.Profile.AdminUpdatePortfolioItem)
+	protected.Delete("/users/:id/portfolio/:itemID", middlewares.RoleMiddleware("admin"), h.Profile.AdminRemovePortfolioItem)
 	protected.Post("/auth/logout", h.Auth.Logout)
 	protected.Post("/auth/resend-verify", h.Auth.ResendVerifyEmail)
 	protected.Put("/me/password", h.User.ChangePassword)
@@ -76,11 +85,16 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	// Profile & Portfolio — view any user's full profile (login required)
 	protected.Get("/me/profile", h.Profile.GetMyProfile)
 	protected.Get("/users/:id/profile", h.Profile.GetPublicProfile)
+	protected.Post("/uploads/presign", h.Upload.Presign)
+	protected.Post("/uploads/complete", h.Upload.Complete)
+	protected.Get("/files/:id/url", h.Upload.GetFileURL)
+	protected.Delete("/files/:id", h.Upload.Delete)
 
 	// Self-service profile management
 	protected.Put("/me/profile", h.Profile.UpsertProfile)
 
 	protected.Post("/me/skills", h.Profile.AddSkill)
+	protected.Put("/me/skills/:skillID", h.Profile.UpdateSkill)
 	protected.Delete("/me/skills/:skillID", h.Profile.RemoveSkill)
 
 	protected.Post("/me/experiences", h.Profile.AddExperience)
@@ -115,8 +129,10 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	protected.Delete("/projects/:id", h.Project.Delete)
 
 	// Members
+	protected.Get("/project-member-roles", h.Member.ListRoleMaster)
 	protected.Post("/projects/:id/members", h.Member.Add)
 	protected.Get("/projects/:id/members", h.Member.List)
+	protected.Put("/projects/:id/members/:memberID/roles", h.Member.UpdateMemberRoles)
 	protected.Delete("/projects/:id/members/:memberID", h.Member.Remove)
 	protected.Post("/projects/:id/transfer-lead", h.Member.TransferLead)
 

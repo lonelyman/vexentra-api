@@ -13,16 +13,16 @@ import (
 // ─────────────────────────────────────────────────────────────────────
 
 type profileModel struct {
-	ID          uuid.UUID         `gorm:"type:uuid;primaryKey"`
-	PersonID    uuid.UUID         `gorm:"type:uuid;uniqueIndex;not null"`
-	DisplayName string            `gorm:"size:100;column:display_name"`
-	Headline    string            `gorm:"column:headline"`
-	Bio         string            `gorm:"column:bio;type:text"`
-	Location    string            `gorm:"column:location"`
-	AvatarURL   string            `gorm:"column:avatar_url"`
-	SocialLinks []socialLinkModel `gorm:"foreignKey:PersonID;references:PersonID"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID           uuid.UUID         `gorm:"type:uuid;primaryKey"`
+	PersonID     uuid.UUID         `gorm:"type:uuid;uniqueIndex;not null"`
+	DisplayName  string            `gorm:"size:100;column:display_name"`
+	Headline     string            `gorm:"column:headline"`
+	Bio          string            `gorm:"column:bio;type:text"`
+	Location     string            `gorm:"column:location"`
+	AvatarFileID *uuid.UUID        `gorm:"type:uuid;column:avatar_file_id"`
+	SocialLinks  []socialLinkModel `gorm:"foreignKey:PersonID;references:PersonID"`
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 func (profileModel) TableName() string { return "profiles" }
@@ -33,16 +33,16 @@ func (m *profileModel) ToEntity() *user.Profile {
 		links[i] = *l.ToEntity()
 	}
 	return &user.Profile{
-		ID:          m.ID,
-		PersonID:    m.PersonID,
-		DisplayName: m.DisplayName,
-		Headline:    m.Headline,
-		Bio:         m.Bio,
-		Location:    m.Location,
-		AvatarURL:   m.AvatarURL,
-		SocialLinks: links,
-		CreatedAt:   m.CreatedAt,
-		UpdatedAt:   m.UpdatedAt,
+		ID:           m.ID,
+		PersonID:     m.PersonID,
+		DisplayName:  m.DisplayName,
+		Headline:     m.Headline,
+		Bio:          m.Bio,
+		Location:     m.Location,
+		AvatarFileID: m.AvatarFileID,
+		SocialLinks:  links,
+		CreatedAt:    m.CreatedAt,
+		UpdatedAt:    m.UpdatedAt,
 	}
 }
 

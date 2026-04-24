@@ -2,6 +2,7 @@ package projectsvc
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -87,8 +88,14 @@ func (s *transactionService) Create(ctx context.Context, caller user.Caller, pro
 	if err != nil {
 		return nil, err
 	}
-	if err := s.assertCategoryUsable(ctx, in.CategoryID); err != nil {
+	cat, err := s.getUsableCategory(ctx, in.CategoryID)
+	if err != nil {
 		return nil, err
+	}
+	if cat.Type == txcategory.TransactionTypeExpense {
+		if _, err := s.projectSvc.RequireExpenseFinanceRead(ctx, caller, projectID); err != nil {
+			return nil, err
+		}
 	}
 
 	t := &project.ProjectTransaction{
@@ -117,6 +124,9 @@ func (s *transactionService) Get(ctx context.Context, caller user.Caller, projec
 	if t == nil || t.ProjectID != projectID {
 		return nil, custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบรายการธุรกรรมนี้")
 	}
+	if err := s.ensureExpenseReadableByCategoryID(ctx, caller, projectID, t.CategoryID); err != nil {
+		return nil, err
+	}
 	return t, nil
 }
 
@@ -130,14 +140,44 @@ func (s *transactionService) List(ctx context.Context, caller user.Caller, proje
 	if pg.Offset < 0 {
 		pg.Offset = 0
 	}
-	return s.txRepo.ListByProject(ctx, projectID, f, pg)
+	items, total, err := s.txRepo.ListByProject(ctx, projectID, f, pg)
+	if err != nil {
+		return nil, 0, err
+	}
+	canReadExpense, err := s.canReadExpense(ctx, caller, projectID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if canReadExpense {
+		return items, total, nil
+	}
+	filtered, ferr := s.filterOutExpenseTransactions(ctx, items)
+	if ferr != nil {
+		return nil, 0, ferr
+	}
+	return filtered, int64(len(filtered)), nil
 }
 
 func (s *transactionService) Summary(ctx context.Context, caller user.Caller, projectID uuid.UUID) (*project.ProjectTotals, error) {
 	if _, err := s.projectSvc.CanAccessProject(ctx, caller, projectID); err != nil {
 		return nil, err
 	}
-	return s.txRepo.SumByProject(ctx, projectID)
+	totals, err := s.txRepo.SumByProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	canReadExpense, err := s.canReadExpense(ctx, caller, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if canReadExpense {
+		return totals, nil
+	}
+	return &project.ProjectTotals{
+		Income:  totals.Income,
+		Expense: decimal.Zero,
+		Net:     totals.Income,
+	}, nil
 }
 
 func (s *transactionService) Update(ctx context.Context, caller user.Caller, projectID, txID uuid.UUID, in UpdateTransactionInput) (*project.ProjectTransaction, error) {
@@ -164,8 +204,14 @@ func (s *transactionService) Update(ctx context.Context, caller user.Caller, pro
 	if err != nil {
 		return nil, err
 	}
-	if err := s.assertCategoryUsable(ctx, in.CategoryID); err != nil {
+	cat, err := s.getUsableCategory(ctx, in.CategoryID)
+	if err != nil {
 		return nil, err
+	}
+	if cat.Type == txcategory.TransactionTypeExpense {
+		if _, err := s.projectSvc.RequireExpenseFinanceRead(ctx, caller, projectID); err != nil {
+			return nil, err
+		}
 	}
 
 	t.CategoryID = in.CategoryID
@@ -184,7 +230,25 @@ func (s *transactionService) ListForExport(ctx context.Context, caller user.Call
 	if _, err := s.projectSvc.CanAccessProject(ctx, caller, projectID); err != nil {
 		return nil, err
 	}
-	return s.txRepo.ListForExport(ctx, projectID)
+	rows, err := s.txRepo.ListForExport(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	canReadExpense, err := s.canReadExpense(ctx, caller, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if canReadExpense {
+		return rows, nil
+	}
+	filtered := make([]*project.TransactionExportRow, 0, len(rows))
+	for _, row := range rows {
+		if row.CategoryType == string(txcategory.TransactionTypeExpense) {
+			continue
+		}
+		filtered = append(filtered, row)
+	}
+	return filtered, nil
 }
 
 func (s *transactionService) Delete(ctx context.Context, caller user.Caller, projectID, txID uuid.UUID) error {
@@ -202,6 +266,9 @@ func (s *transactionService) Delete(ctx context.Context, caller user.Caller, pro
 	if t == nil || t.ProjectID != projectID {
 		return custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบรายการธุรกรรมนี้")
 	}
+	if err := s.ensureExpenseReadableByCategoryID(ctx, caller, projectID, t.CategoryID); err != nil {
+		return err
+	}
 	return s.txRepo.Delete(ctx, txID)
 }
 
@@ -209,31 +276,65 @@ func (s *transactionService) Delete(ctx context.Context, caller user.Caller, pro
 // Helpers
 // -----------------------------------------------------------------------------
 
-// requireWriteAccess returns the project if the caller may write transactions.
-// Staff, creator, project lead, and any active member are all permitted —
-// transactions are day-to-day logging, not governance.
+// requireWriteAccess returns the project if caller may write transactions.
+// Allowed: staff, current lead, or coordinator. Plain members are blocked.
 func (s *transactionService) requireWriteAccess(ctx context.Context, caller user.Caller, projectID uuid.UUID) (*project.Project, error) {
 	p, err := s.projectSvc.CanAccessProject(ctx, caller, projectID)
 	if err != nil {
 		return nil, err
 	}
-	// CanAccessProject already enforces staff/creator/active-member gate; that
-	// is exactly the set allowed to write transactions.
-	return p, nil
+	if caller.IsStaff() {
+		return p, nil
+	}
+	lead, err := s.memberRepo.GetActiveLead(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if lead != nil && lead.PersonID == caller.PersonID {
+		return p, nil
+	}
+	isCoordinator, err := s.memberRepo.HasActiveRoleCode(ctx, projectID, caller.PersonID, projectCoordinatorRoleCode)
+	if err != nil {
+		return nil, err
+	}
+	if isCoordinator {
+		return p, nil
+	}
+	return nil, custom_errors.New(403, custom_errors.ErrForbidden, "member ทั่วไปไม่สามารถแก้ไขธุรกรรมได้ (ต้องเป็นหัวหน้าทีม, coordinator หรือผู้ดูแลระบบ)")
 }
 
-func (s *transactionService) assertCategoryUsable(ctx context.Context, categoryID uuid.UUID) error {
+func (s *transactionService) getUsableCategory(ctx context.Context, categoryID uuid.UUID) (*txcategory.TransactionCategory, error) {
+	c, err := s.getCategoryByID(ctx, categoryID)
+	if err != nil {
+		return nil, err
+	}
+	if !c.IsActive {
+		return nil, custom_errors.New(400, custom_errors.ErrValidation, "หมวดหมู่นี้ถูกปิดใช้งานแล้ว")
+	}
+	return c, nil
+}
+
+func (s *transactionService) getCategoryByID(ctx context.Context, categoryID uuid.UUID) (*txcategory.TransactionCategory, error) {
 	c, err := s.categoryRepo.GetByID(ctx, categoryID)
+	if err != nil {
+		return nil, err
+	}
+	if c == nil {
+		return nil, custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบหมวดหมู่ธุรกรรมนี้")
+	}
+	return c, nil
+}
+
+func (s *transactionService) ensureExpenseReadableByCategoryID(ctx context.Context, caller user.Caller, projectID, categoryID uuid.UUID) error {
+	cat, err := s.getCategoryByID(ctx, categoryID)
 	if err != nil {
 		return err
 	}
-	if c == nil {
-		return custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบหมวดหมู่ธุรกรรมนี้")
+	if cat.Type != txcategory.TransactionTypeExpense {
+		return nil
 	}
-	if !c.IsActive {
-		return custom_errors.New(400, custom_errors.ErrValidation, "หมวดหมู่นี้ถูกปิดใช้งานแล้ว")
-	}
-	return nil
+	_, err = s.projectSvc.RequireExpenseFinanceRead(ctx, caller, projectID)
+	return err
 }
 
 func (s *transactionService) validateAmount(a decimal.Decimal) error {
@@ -261,4 +362,40 @@ func normalizeCurrency(code string) (string, error) {
 		}
 	}
 	return c, nil
+}
+
+func (s *transactionService) canReadExpense(ctx context.Context, caller user.Caller, projectID uuid.UUID) (bool, error) {
+	_, err := s.projectSvc.RequireExpenseFinanceRead(ctx, caller, projectID)
+	if err == nil {
+		return true, nil
+	}
+	var appErr *custom_errors.AppError
+	if errors.As(err, &appErr) && appErr.Code == custom_errors.ErrForbidden {
+		return false, nil
+	}
+	return false, err
+}
+
+func (s *transactionService) filterOutExpenseTransactions(ctx context.Context, items []*project.ProjectTransaction) ([]*project.ProjectTransaction, error) {
+	if len(items) == 0 {
+		return items, nil
+	}
+	typeCache := make(map[uuid.UUID]txcategory.TransactionType, len(items))
+	filtered := make([]*project.ProjectTransaction, 0, len(items))
+	for _, item := range items {
+		tt, ok := typeCache[item.CategoryID]
+		if !ok {
+			cat, err := s.getCategoryByID(ctx, item.CategoryID)
+			if err != nil {
+				return nil, err
+			}
+			tt = cat.Type
+			typeCache[item.CategoryID] = tt
+		}
+		if tt == txcategory.TransactionTypeExpense {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered, nil
 }

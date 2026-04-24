@@ -13,6 +13,8 @@ import (
 type Config struct {
 	App      AppConfig
 	JWT      JWTConfig
+	Mailer   MailerConfig
+	Storage  StorageConfig
 	Postgres PostgresDbs
 	Redis    RedisConfig
 }
@@ -21,6 +23,8 @@ type AppConfig struct {
 	Env                string
 	AppPort            string
 	Timezone           string
+	WebBaseURL         string   // base URL for frontend links used in email templates
+	APIBaseURL         string   // public base URL for API links used in email templates
 	CORSAllowedOrigins []string // comma-separated via API_CORS_ALLOWED_ORIGINS
 	ShowcasePersonID   string   // optional: fixed person ID for public showcase endpoint
 	ProjectCodePrefix  string   // uppercase alphabetic prefix for PREFIX-YYYY-NNNN project codes
@@ -53,6 +57,28 @@ type JWTConfig struct {
 	Issuer        string
 }
 
+type MailerConfig struct {
+	Host     string
+	Port     int
+	Name     string
+	Username string
+	Password string
+}
+
+type StorageConfig struct {
+	Provider            string
+	Endpoint            string
+	PublicBaseURL       string
+	AccessKey           string
+	SecretKey           string
+	Bucket              string
+	UseSSL              bool
+	Region              string
+	PresignTTL          time.Duration
+	HardMaxFileSize     int64
+	ProfileMaxImageSize int64
+}
+
 type RedisConfig struct {
 	Host     string
 	Port     string
@@ -69,6 +95,8 @@ func LoadConfig() (*Config, error) {
 			Env:                mustGetEnv("API_ENV", &missingKeys),
 			AppPort:            mustGetEnv("API_PORT", &missingKeys),
 			Timezone:           getEnv("API_TIMEZONE", "Asia/Bangkok"),
+			WebBaseURL:         getEnv("APP_WEB_URL", "http://localhost:3005"),
+			APIBaseURL:         getEnv("APP_API_URL", "http://localhost:3000"),
 			CORSAllowedOrigins: getEnvAsSlice("API_CORS_ALLOWED_ORIGINS", nil),
 			ShowcasePersonID:   getEnv("APP_SHOWCASE_PERSON_ID", ""),
 			ProjectCodePrefix:  strings.ToUpper(getEnv("APP_PROJECT_CODE_PREFIX", "VX")),
@@ -89,6 +117,26 @@ func LoadConfig() (*Config, error) {
 			RefreshSecret: mustGetEnv("JWT_REFRESH_SECRET", &missingKeys),
 			RefreshExpiry: mustGetEnvAsDuration("JWT_REFRESH_EXPIRY", &missingKeys),
 			Issuer:        getEnv("JWT_ISSUER", "vexentra-api"),
+		},
+		Mailer: MailerConfig{
+			Host:     getEnv("MAILER_HOST", ""),
+			Port:     getEnvAsInt("MAILER_PORT", 587, &missingKeys),
+			Name:     getEnv("MAILER_NAME", "Vexentra"),
+			Username: getEnv("MAILER_USERNAME", ""),
+			Password: getEnv("MAILER_PASSWORD", ""),
+		},
+		Storage: StorageConfig{
+			Provider:            strings.ToLower(getEnv("STORAGE_PROVIDER", "minio")),
+			Endpoint:            getEnv("STORAGE_ENDPOINT", "vexentra-minio:9000"),
+			PublicBaseURL:       getEnv("STORAGE_PUBLIC_BASE_URL", "http://localhost:9000"),
+			AccessKey:           getEnv("STORAGE_ACCESS_KEY", "minioadmin"),
+			SecretKey:           getEnv("STORAGE_SECRET_KEY", "minioadmin"),
+			Bucket:              getEnv("STORAGE_BUCKET", "vexentra-assets"),
+			UseSSL:              getEnvAsBool("STORAGE_USE_SSL", false, &missingKeys),
+			Region:              getEnv("STORAGE_REGION", "ap-southeast-1"),
+			PresignTTL:          getEnvAsDuration("STORAGE_PRESIGN_TTL", "15m", &missingKeys),
+			HardMaxFileSize:     getEnvAsInt64("STORAGE_HARD_MAX_FILE_SIZE", 31457280, &missingKeys),
+			ProfileMaxImageSize: getEnvAsInt64("STORAGE_PROFILE_MAX_IMAGE_SIZE", 5242880, &missingKeys),
 		},
 		Redis: RedisConfig{
 			Host:     mustGetEnv("REDIS_HOST", &missingKeys),
@@ -136,11 +184,50 @@ func getEnvAsInt(key string, defaultValue int, missing *[]string) int {
 	return val
 }
 
+func getEnvAsInt64(key string, defaultValue int64, missing *[]string) int64 {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return defaultValue
+	}
+	val, err := strconv.ParseInt(valStr, 10, 64)
+	if err != nil {
+		*missing = append(*missing, fmt.Sprintf("%s (must be integer)", key))
+		return 0
+	}
+	return val
+}
+
+func getEnvAsBool(key string, defaultValue bool, missing *[]string) bool {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return defaultValue
+	}
+	val, err := strconv.ParseBool(valStr)
+	if err != nil {
+		*missing = append(*missing, fmt.Sprintf("%s (must be boolean)", key))
+		return false
+	}
+	return val
+}
+
 func mustGetEnvAsDuration(key string, missing *[]string) time.Duration {
 	valStr := os.Getenv(key)
 	if valStr == "" {
 		*missing = append(*missing, key)
 		return 0
+	}
+	d, err := time.ParseDuration(valStr)
+	if err != nil {
+		*missing = append(*missing, fmt.Sprintf("%s (must be duration e.g. 15m, 168h)", key))
+		return 0
+	}
+	return d
+}
+
+func getEnvAsDuration(key, defaultValue string, missing *[]string) time.Duration {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		valStr = defaultValue
 	}
 	d, err := time.ParseDuration(valStr)
 	if err != nil {

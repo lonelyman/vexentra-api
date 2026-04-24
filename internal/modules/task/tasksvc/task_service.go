@@ -47,6 +47,8 @@ type taskService struct {
 	logger     logger.Logger
 }
 
+const projectCoordinatorRoleCode = "coordinator"
+
 func New(
 	projectSvc projectsvc.ProjectService,
 	memberRepo project.ProjectMemberRepository,
@@ -64,9 +66,10 @@ func New(
 	}
 }
 
-// Create adds a task to the project. Any active project member may create tasks.
+// Create adds a task to the project.
+// Write access is restricted to staff, lead, or coordinator.
 func (s *taskService) Create(ctx context.Context, caller user.Caller, projectID uuid.UUID, in CreateTaskInput) (*task.Task, error) {
-	if _, err := s.projectSvc.CanAccessProject(ctx, caller, projectID); err != nil {
+	if err := s.requireWriteAccess(ctx, caller, projectID); err != nil {
 		return nil, err
 	}
 	if err := s.validateAssignee(ctx, projectID, in.AssignedPersonID); err != nil {
@@ -127,9 +130,10 @@ func (s *taskService) List(ctx context.Context, caller user.Caller, projectID uu
 	return s.taskRepo.ListByProject(ctx, projectID, f, pg)
 }
 
-// Update allows any project member to update tasks (collaborative).
+// Update task details.
+// Write access is restricted to staff, lead, or coordinator.
 func (s *taskService) Update(ctx context.Context, caller user.Caller, projectID, taskID uuid.UUID, in UpdateTaskInput) (*task.Task, error) {
-	if _, err := s.projectSvc.CanAccessProject(ctx, caller, projectID); err != nil {
+	if err := s.requireWriteAccess(ctx, caller, projectID); err != nil {
 		return nil, err
 	}
 	if err := s.validateAssignee(ctx, projectID, in.AssignedPersonID); err != nil {
@@ -168,10 +172,10 @@ func (s *taskService) Update(ctx context.Context, caller user.Caller, projectID,
 	return t, nil
 }
 
-// Delete soft-deletes a task. Creator, project lead/creator, and staff may delete.
+// Delete soft-deletes a task.
+// Write access is restricted to staff, lead, or coordinator.
 func (s *taskService) Delete(ctx context.Context, caller user.Caller, projectID, taskID uuid.UUID) error {
-	p, err := s.projectSvc.CanAccessProject(ctx, caller, projectID)
-	if err != nil {
+	if err := s.requireWriteAccess(ctx, caller, projectID); err != nil {
 		return err
 	}
 	t, err := s.taskRepo.GetByID(ctx, taskID)
@@ -181,18 +185,31 @@ func (s *taskService) Delete(ctx context.Context, caller user.Caller, projectID,
 	if t == nil || t.ProjectID != projectID {
 		return custom_errors.New(404, custom_errors.ErrNotFound, "ไม่พบงานนี้")
 	}
-	if caller.IsStaff() || t.CreatedByUserID == caller.UserID || p.CreatedByUserID == caller.UserID {
-		return s.taskRepo.Delete(ctx, taskID)
-	}
+	return s.taskRepo.Delete(ctx, taskID)
+}
 
+func (s *taskService) requireWriteAccess(ctx context.Context, caller user.Caller, projectID uuid.UUID) error {
+	if _, err := s.projectSvc.CanAccessProject(ctx, caller, projectID); err != nil {
+		return err
+	}
+	if caller.IsStaff() {
+		return nil
+	}
 	lead, err := s.memberRepo.GetActiveLead(ctx, projectID)
 	if err != nil {
 		return err
 	}
 	if lead != nil && lead.PersonID == caller.PersonID {
-		return s.taskRepo.Delete(ctx, taskID)
+		return nil
 	}
-	return custom_errors.New(403, custom_errors.ErrForbidden, "เฉพาะผู้สร้างงาน ผู้สร้างโปรเจกต์ หัวหน้าทีม หรือผู้ดูแลระบบเท่านั้นที่ลบงานได้")
+	isCoordinator, err := s.memberRepo.HasActiveRoleCode(ctx, projectID, caller.PersonID, projectCoordinatorRoleCode)
+	if err != nil {
+		return err
+	}
+	if isCoordinator {
+		return nil
+	}
+	return custom_errors.New(403, custom_errors.ErrForbidden, "member ทั่วไปเป็น read-only (แก้ไข task ได้เฉพาะหัวหน้าทีม, coordinator หรือผู้ดูแลระบบ)")
 }
 
 func isValidStatus(s task.TaskStatus) bool {

@@ -3,6 +3,7 @@ package pguser
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 	"vexentra-api/internal/adapters/database/postgres/pgtx"
 	"vexentra-api/internal/modules/user"
@@ -312,15 +313,44 @@ func (r *userRepository) UpdateAuthRefreshToken(ctx context.Context, authID uuid
 	return nil
 }
 
+func (r *userRepository) SetForcePasswordChange(ctx context.Context, userID uuid.UUID, required bool) error {
+	if err := r.db.WithContext(ctx).Model(&userModel{}).
+		Where("id = ?", userID).
+		Updates(map[string]any{
+			"force_password_change": required,
+			"password_changed_at":   nil,
+		}).Error; err != nil {
+		r.logger.Error("DB_SET_FORCE_PASSWORD_CHANGE_ERROR", err)
+		return err
+	}
+	return nil
+}
+
+func (r *userRepository) MarkPasswordChanged(ctx context.Context, userID uuid.UUID, changedAt time.Time) error {
+	if err := r.db.WithContext(ctx).Model(&userModel{}).
+		Where("id = ?", userID).
+		Updates(map[string]any{
+			"password_changed_at":             changedAt,
+			"force_password_change":           false,
+			"password_reset_token":            nil,
+			"password_reset_token_expires_at": nil,
+		}).Error; err != nil {
+		r.logger.Error("DB_MARK_PASSWORD_CHANGED_ERROR", err)
+		return err
+	}
+	return nil
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Pagination
 // ─────────────────────────────────────────────────────────────────────────────
 
-func (r *userRepository) ListOffset(ctx context.Context, limit, offset int) ([]*user.User, int64, error) {
+func (r *userRepository) ListOffset(ctx context.Context, limit, offset int, search, status string) ([]*user.User, int64, error) {
 	var models []userModel
 	var total int64
 
 	base := r.db.WithContext(ctx).Model(&userModel{})
+	base = applyUserListFilter(base, search, status)
 
 	if err := base.Count(&total).Error; err != nil {
 		r.logger.Error("DB_LIST_COUNT_ERROR", err)
@@ -341,12 +371,13 @@ func (r *userRepository) ListOffset(ctx context.Context, limit, offset int) ([]*
 	return users, total, nil
 }
 
-func (r *userRepository) ListAfterCursor(ctx context.Context, afterID uuid.UUID, limit int) ([]*user.User, error) {
+func (r *userRepository) ListAfterCursor(ctx context.Context, afterID uuid.UUID, limit int, search, status string) ([]*user.User, error) {
 	var models []userModel
 
-	q := r.db.WithContext(ctx).Order("id ASC").Limit(limit)
+	q := r.db.WithContext(ctx).Model(&userModel{}).Order("users.id ASC").Limit(limit)
+	q = applyUserListFilter(q, search, status)
 	if afterID != uuid.Nil {
-		q = q.Where("id > ?", afterID)
+		q = q.Where("users.id > ?", afterID)
 	}
 
 	if err := q.Find(&models).Error; err != nil {
@@ -359,4 +390,25 @@ func (r *userRepository) ListAfterCursor(ctx context.Context, afterID uuid.UUID,
 		users[i] = models[i].ToEntity()
 	}
 	return users, nil
+}
+
+func applyUserListFilter(q *gorm.DB, search, status string) *gorm.DB {
+	search = strings.TrimSpace(search)
+	status = strings.TrimSpace(strings.ToLower(status))
+
+	if status != "" {
+		q = q.Where("users.status = ?", status)
+	}
+	if search != "" {
+		pattern := "%" + search + "%"
+		q = q.Joins("LEFT JOIN profiles ON profiles.person_id = users.person_id").
+			Where(
+				`users.username ILIKE ?
+OR users.email ILIKE ?
+OR COALESCE(profiles.display_name, '') ILIKE ?
+OR COALESCE(profiles.headline, '') ILIKE ?`,
+				pattern, pattern, pattern, pattern,
+			)
+	}
+	return q
 }

@@ -18,8 +18,11 @@ type projectModel struct {
 	Name        string  `gorm:"not null"`
 	Description *string `gorm:"column:description"`
 
-	Status        string  `gorm:"type:project_status;not null;default:'draft'"`
-	ClosureReason *string `gorm:"type:project_closure_reason;column:closure_reason"`
+	Kind                      string  `gorm:"column:project_kind;not null;default:'client_delivery'"`
+	Status                    string  `gorm:"type:project_status;not null;default:'draft'"`
+	ClosureReason             *string `gorm:"type:project_closure_reason;column:closure_reason"`
+	ContractFinanceVisibility string  `gorm:"column:contract_finance_visibility;not null;default:'all_members'"`
+	ExpenseFinanceVisibility  string  `gorm:"column:expense_finance_visibility;not null;default:'all_members'"`
 
 	ClientPersonID *uuid.UUID `gorm:"type:uuid;column:client_person_id"`
 	ClientNameRaw  *string    `gorm:"column:client_name_raw"`
@@ -50,23 +53,26 @@ func (m *projectModel) ToEntity() *project.Project {
 		closureReason = &v
 	}
 	return &project.Project{
-		ID:               m.ID,
-		ProjectCode:      m.ProjectCode,
-		Name:             m.Name,
-		Description:      m.Description,
-		Status:           project.ProjectStatus(m.Status),
-		ClosureReason:    closureReason,
-		ClientPersonID:   m.ClientPersonID,
-		ClientNameRaw:    m.ClientNameRaw,
-		ClientEmailRaw:   m.ClientEmailRaw,
-		ScheduledStartAt: m.ScheduledStartAt,
-		DeadlineAt:       m.DeadlineAt,
-		ActivatedAt:      m.ActivatedAt,
-		ClosedAt:         m.ClosedAt,
-		CreatedByUserID:  m.CreatedByUserID,
-		CreatedAt:        m.CreatedAt,
-		UpdatedAt:        m.UpdatedAt,
-		DeletedAt:        deletedAt,
+		ID:                        m.ID,
+		ProjectCode:               m.ProjectCode,
+		Name:                      m.Name,
+		Description:               m.Description,
+		Kind:                      project.ProjectKind(m.Kind),
+		Status:                    project.ProjectStatus(m.Status),
+		ClosureReason:             closureReason,
+		ContractFinanceVisibility: project.FinanceVisibility(m.ContractFinanceVisibility),
+		ExpenseFinanceVisibility:  project.FinanceVisibility(m.ExpenseFinanceVisibility),
+		ClientPersonID:            m.ClientPersonID,
+		ClientNameRaw:             m.ClientNameRaw,
+		ClientEmailRaw:            m.ClientEmailRaw,
+		ScheduledStartAt:          m.ScheduledStartAt,
+		DeadlineAt:                m.DeadlineAt,
+		ActivatedAt:               m.ActivatedAt,
+		ClosedAt:                  m.ClosedAt,
+		CreatedByUserID:           m.CreatedByUserID,
+		CreatedAt:                 m.CreatedAt,
+		UpdatedAt:                 m.UpdatedAt,
+		DeletedAt:                 deletedAt,
 	}
 }
 
@@ -77,19 +83,22 @@ func fromProject(p *project.Project) *projectModel {
 		closureReason = &s
 	}
 	return &projectModel{
-		ID:               p.ID,
-		ProjectCode:      p.ProjectCode,
-		Name:             p.Name,
-		Description:      p.Description,
-		Status:           string(p.Status),
-		ClosureReason:    closureReason,
-		ClientPersonID:   p.ClientPersonID,
-		ClientNameRaw:    p.ClientNameRaw,
-		ClientEmailRaw:   p.ClientEmailRaw,
-		ScheduledStartAt: p.ScheduledStartAt,
-		DeadlineAt:       p.DeadlineAt,
-		ActivatedAt:      p.ActivatedAt,
-		ClosedAt:         p.ClosedAt,
-		CreatedByUserID:  p.CreatedByUserID,
+		ID:                        p.ID,
+		ProjectCode:               p.ProjectCode,
+		Name:                      p.Name,
+		Description:               p.Description,
+		Kind:                      string(p.Kind),
+		Status:                    string(p.Status),
+		ClosureReason:             closureReason,
+		ContractFinanceVisibility: string(p.ContractFinanceVisibility),
+		ExpenseFinanceVisibility:  string(p.ExpenseFinanceVisibility),
+		ClientPersonID:            p.ClientPersonID,
+		ClientNameRaw:             p.ClientNameRaw,
+		ClientEmailRaw:            p.ClientEmailRaw,
+		ScheduledStartAt:          p.ScheduledStartAt,
+		DeadlineAt:                p.DeadlineAt,
+		ActivatedAt:               p.ActivatedAt,
+		ClosedAt:                  p.ClosedAt,
+		CreatedByUserID:           p.CreatedByUserID,
 	}
 }

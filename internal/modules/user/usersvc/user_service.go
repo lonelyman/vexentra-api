@@ -57,6 +57,8 @@ type UserService interface {
 	GetProfile(ctx context.Context, userID uuid.UUID) (*user.User, error)
 	ListUsersOffset(ctx context.Context, limit, offset int, search, status string) (*ListUsersOffsetResult, error)
 	ListUsersCursor(ctx context.Context, afterID uuid.UUID, limit int, search, status string) (*ListUsersCursorResult, error)
+	ListRoleMaster(ctx context.Context, activeOnly bool) ([]user.UserRoleMaster, error)
+	ListStatusMaster(ctx context.Context, activeOnly bool) ([]user.UserStatusMaster, error)
 
 	// Claim Person — user ยืนยันว่าต้องการผูก Person ที่ระบบ suggest
 	ClaimPerson(ctx context.Context, userID, personID uuid.UUID) error
@@ -560,14 +562,26 @@ func (s *userService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 }
 
 func (s *userService) AdminUpdateUser(ctx context.Context, targetID uuid.UUID, role, status string) (*user.User, error) {
-	validRoles := map[string]bool{user.UserRoleMember: true, user.UserRoleManager: true, user.UserRoleAdmin: true}
-	validStatuses := map[string]bool{user.UserStatusActive: true, user.UserStatusBanned: true, user.UserStatusPendingVerification: true}
+	role = strings.TrimSpace(strings.ToLower(role))
+	status = strings.TrimSpace(strings.ToLower(status))
 
-	if role != "" && !validRoles[role] {
-		return nil, custom_errors.NewBadRequestError("INVALID_ROLE", "role ไม่ถูกต้อง (member | manager | admin)")
+	if role != "" {
+		ok, err := s.repo.IsActiveRole(ctx, role)
+		if err != nil {
+			return nil, custom_errors.NewInternalError("ไม่สามารถตรวจสอบ role ได้")
+		}
+		if !ok {
+			return nil, custom_errors.NewBadRequestError("INVALID_ROLE", "role ไม่ถูกต้องหรือไม่ active")
+		}
 	}
-	if status != "" && !validStatuses[status] {
-		return nil, custom_errors.NewBadRequestError("INVALID_STATUS", "status ไม่ถูกต้อง (active | banned | pending_verification)")
+	if status != "" {
+		ok, err := s.repo.IsActiveStatus(ctx, status)
+		if err != nil {
+			return nil, custom_errors.NewInternalError("ไม่สามารถตรวจสอบ status ได้")
+		}
+		if !ok {
+			return nil, custom_errors.NewBadRequestError("INVALID_STATUS", "status ไม่ถูกต้องหรือไม่ active")
+		}
 	}
 
 	if role != "" {
@@ -633,8 +647,16 @@ func (s *userService) AdminCreateUser(ctx context.Context, email, password, disp
 		username = username + "_" + hex.EncodeToString([]byte(email))[:6]
 	}
 
+	role = strings.TrimSpace(strings.ToLower(role))
 	if role == "" {
 		role = user.UserRoleMember
+	}
+	ok, err := s.repo.IsActiveRole(ctx, role)
+	if err != nil {
+		return nil, custom_errors.NewInternalError("ไม่สามารถตรวจสอบ role ได้")
+	}
+	if !ok {
+		return nil, custom_errors.NewBadRequestError("INVALID_ROLE", "role ไม่ถูกต้องหรือไม่ active")
 	}
 
 	hashedPassword, err := s.authSvc.HashPassword(password)
@@ -687,6 +709,22 @@ func (s *userService) AdminCreateUser(ctx context.Context, email, password, disp
 	}
 
 	return newUser, nil
+}
+
+func (s *userService) ListRoleMaster(ctx context.Context, activeOnly bool) ([]user.UserRoleMaster, error) {
+	items, err := s.repo.ListRoleMaster(ctx, activeOnly)
+	if err != nil {
+		return nil, custom_errors.NewInternalError("ไม่สามารถโหลด role master ได้")
+	}
+	return items, nil
+}
+
+func (s *userService) ListStatusMaster(ctx context.Context, activeOnly bool) ([]user.UserStatusMaster, error) {
+	items, err := s.repo.ListStatusMaster(ctx, activeOnly)
+	if err != nil {
+		return nil, custom_errors.NewInternalError("ไม่สามารถโหลด status master ได้")
+	}
+	return items, nil
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

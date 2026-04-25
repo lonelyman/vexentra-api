@@ -30,12 +30,12 @@ type AdminCreateUserRequest struct {
 	Email       string `json:"email"        validate:"required,email"                             vmsg:"required:กรุณาระบุอีเมล,email:รูปแบบอีเมลไม่ถูกต้อง"`
 	Password    string `json:"password"     validate:"required,min=8"                             vmsg:"required:กรุณาระบุรหัสผ่าน,min:รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"`
 	DisplayName string `json:"display_name" validate:"required"                                   vmsg:"required:กรุณาระบุชื่อ"`
-	Role        string `json:"role"         validate:"omitempty,oneof=member manager admin"       vmsg:"oneof:role ต้องเป็น member | manager | admin"`
+	Role        string `json:"role"         validate:"omitempty,max=20"                            vmsg:"max:role ยาวเกินกำหนด"`
 }
 
 // AdminUpdateUserRequest is the request body for PATCH /api/v1/users/:id (admin only).
 // Both fields are optional — send only the ones you want to change.
 type AdminUpdateUserRequest struct {
-	Role   string `json:"role"   validate:"omitempty,oneof=member manager admin"                    vmsg:"oneof:role ต้องเป็น member | manager | admin"`
-	Status string `json:"status" validate:"omitempty,oneof=active banned pending_verification"    vmsg:"oneof:status ต้องเป็น active | banned | pending_verification"`
+	Role   string `json:"role"   validate:"omitempty,max=20"                                        vmsg:"max:role ยาวเกินกำหนด"`
+	Status string `json:"status" validate:"omitempty,max=30"                                        vmsg:"max:status ยาวเกินกำหนด"`
 }

@@ -49,4 +49,10 @@ type UserRepository interface {
 	// Fetch limit+1 to detect hasMore — caller trims the extra item.
 	// Pass uuid.Nil (zero value) to start from the beginning.
 	ListAfterCursor(ctx context.Context, afterID uuid.UUID, limit int, search, status string) ([]*User, error)
+
+	// ─── User Master Data ────────────────────────────────────────────────────
+	ListRoleMaster(ctx context.Context, activeOnly bool) ([]UserRoleMaster, error)
+	ListStatusMaster(ctx context.Context, activeOnly bool) ([]UserStatusMaster, error)
+	IsActiveRole(ctx context.Context, role string) (bool, error)
+	IsActiveStatus(ctx context.Context, status string) (bool, error)
 }

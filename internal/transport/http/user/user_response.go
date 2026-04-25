@@ -19,6 +19,42 @@ type UserResponse struct {
 	CreatedAt           time.Time  `json:"created_at"`
 }
 
+type UserRoleMasterResponse struct {
+	Code      string `json:"code"`
+	LabelTH   string `json:"label_th"`
+	LabelEN   string `json:"label_en"`
+	SortOrder int    `json:"sort_order"`
+	IsActive  bool   `json:"is_active"`
+}
+
+func NewUserRoleMasterResponse(r user.UserRoleMaster) UserRoleMasterResponse {
+	return UserRoleMasterResponse{
+		Code:      r.Code,
+		LabelTH:   r.LabelTH,
+		LabelEN:   r.LabelEN,
+		SortOrder: r.SortOrder,
+		IsActive:  r.IsActive,
+	}
+}
+
+type UserStatusMasterResponse struct {
+	Code      string `json:"code"`
+	LabelTH   string `json:"label_th"`
+	LabelEN   string `json:"label_en"`
+	SortOrder int    `json:"sort_order"`
+	IsActive  bool   `json:"is_active"`
+}
+
+func NewUserStatusMasterResponse(s user.UserStatusMaster) UserStatusMasterResponse {
+	return UserStatusMasterResponse{
+		Code:      s.Code,
+		LabelTH:   s.LabelTH,
+		LabelEN:   s.LabelEN,
+		SortOrder: s.SortOrder,
+		IsActive:  s.IsActive,
+	}
+}
+
 func NewUserResponse(u *user.User) UserResponse {
 	return UserResponse{
 		ID:                  u.ID.String(),

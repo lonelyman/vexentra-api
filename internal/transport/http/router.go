@@ -61,6 +61,8 @@ func SetupRouter(app *fiber.App, h Handlers) {
 	// Protected Routes
 	protected := api.Group("/", middlewares.AuthMiddleware(h.AuthSvc))
 	protected.Get("/me", h.User.GetProfile)
+	protected.Get("/user-roles", h.User.ListRoleMaster)
+	protected.Get("/user-statuses", h.User.ListStatusMaster)
 	protected.Post("/users", middlewares.RoleMiddleware("admin"), h.User.AdminCreateUser)
 	protected.Get("/users", middlewares.RoleMiddleware("admin"), h.User.ListUsers)
 	protected.Get("/users/:id", middlewares.RoleMiddleware("admin"), h.User.AdminGetUser)

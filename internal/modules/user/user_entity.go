@@ -84,3 +84,21 @@ type UserAuth struct {
 	Secret       string  // hashed password (local only); ว่างสำหรับ OAuth
 	RefreshToken *string // refresh token ล่าสุดที่ออกให้ user นี้
 }
+
+// UserRoleMaster is a master-data row for account roles.
+type UserRoleMaster struct {
+	Code      string
+	LabelTH   string
+	LabelEN   string
+	SortOrder int
+	IsActive  bool
+}
+
+// UserStatusMaster is a master-data row for account statuses.
+type UserStatusMaster struct {
+	Code      string
+	LabelTH   string
+	LabelEN   string
+	SortOrder int
+	IsActive  bool
+}

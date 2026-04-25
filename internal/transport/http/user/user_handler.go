@@ -134,6 +134,34 @@ func (h *UserHandler) ListUsers(c fiber.Ctx) error {
 	return h.listUsersOffset(c)
 }
 
+// ListRoleMaster — GET /api/v1/user-roles?active_only=true
+func (h *UserHandler) ListRoleMaster(c fiber.Ctx) error {
+	activeOnly := !strings.EqualFold(strings.TrimSpace(c.Query("active_only", "")), "false")
+	items, err := h.svc.ListRoleMaster(c.Context(), activeOnly)
+	if err != nil {
+		return err
+	}
+	resp := make([]UserRoleMasterResponse, len(items))
+	for i := range items {
+		resp[i] = NewUserRoleMasterResponse(items[i])
+	}
+	return presenter.RenderList(c, resp)
+}
+
+// ListStatusMaster — GET /api/v1/user-statuses?active_only=true
+func (h *UserHandler) ListStatusMaster(c fiber.Ctx) error {
+	activeOnly := !strings.EqualFold(strings.TrimSpace(c.Query("active_only", "")), "false")
+	items, err := h.svc.ListStatusMaster(c.Context(), activeOnly)
+	if err != nil {
+		return err
+	}
+	resp := make([]UserStatusMasterResponse, len(items))
+	for i := range items {
+		resp[i] = NewUserStatusMasterResponse(items[i])
+	}
+	return presenter.RenderList(c, resp)
+}
+
 func (h *UserHandler) listUsersOffset(c fiber.Ctx) error {
 	q := presenter.ParseOffsetQuery(c)
 	search := strings.TrimSpace(c.Query("search", ""))

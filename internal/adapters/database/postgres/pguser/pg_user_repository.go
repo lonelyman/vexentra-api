@@ -392,6 +392,64 @@ func (r *userRepository) ListAfterCursor(ctx context.Context, afterID uuid.UUID,
 	return users, nil
 }
 
+func (r *userRepository) ListRoleMaster(ctx context.Context, activeOnly bool) ([]user.UserRoleMaster, error) {
+	q := r.db.WithContext(ctx).Model(&userRoleMasterModel{})
+	if activeOnly {
+		q = q.Where("is_active = ?", true)
+	}
+	var models []userRoleMasterModel
+	if err := q.Order("sort_order ASC").Order("code ASC").Find(&models).Error; err != nil {
+		r.logger.Error("DB_LIST_USER_ROLE_MASTER_ERROR", err)
+		return nil, err
+	}
+	items := make([]user.UserRoleMaster, len(models))
+	for i := range models {
+		items[i] = models[i].ToEntity()
+	}
+	return items, nil
+}
+
+func (r *userRepository) ListStatusMaster(ctx context.Context, activeOnly bool) ([]user.UserStatusMaster, error) {
+	q := r.db.WithContext(ctx).Model(&userStatusMasterModel{})
+	if activeOnly {
+		q = q.Where("is_active = ?", true)
+	}
+	var models []userStatusMasterModel
+	if err := q.Order("sort_order ASC").Order("code ASC").Find(&models).Error; err != nil {
+		r.logger.Error("DB_LIST_USER_STATUS_MASTER_ERROR", err)
+		return nil, err
+	}
+	items := make([]user.UserStatusMaster, len(models))
+	for i := range models {
+		items[i] = models[i].ToEntity()
+	}
+	return items, nil
+}
+
+func (r *userRepository) IsActiveRole(ctx context.Context, role string) (bool, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&userRoleMasterModel{}).
+		Where("code = ? AND is_active = ?", strings.TrimSpace(strings.ToLower(role)), true).
+		Count(&count).Error; err != nil {
+		r.logger.Error("DB_CHECK_ACTIVE_ROLE_ERROR", err)
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *userRepository) IsActiveStatus(ctx context.Context, status string) (bool, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&userStatusMasterModel{}).
+		Where("code = ? AND is_active = ?", strings.TrimSpace(strings.ToLower(status)), true).
+		Count(&count).Error; err != nil {
+		r.logger.Error("DB_CHECK_ACTIVE_STATUS_ERROR", err)
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func applyUserListFilter(q *gorm.DB, search, status string) *gorm.DB {
 	search = strings.TrimSpace(search)
 	status = strings.TrimSpace(strings.ToLower(status))

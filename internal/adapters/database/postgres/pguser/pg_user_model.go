@@ -17,7 +17,7 @@ type userModel struct {
 	PersonID    uuid.UUID  `gorm:"type:uuid;column:person_id;not null;uniqueIndex:idx_users_person,where:deleted_at IS NULL"`
 	Username    string     `gorm:"size:50;not null"`
 	Email       string     `gorm:"size:254;uniqueIndex:idx_users_email_active,where:deleted_at IS NULL;not null"`
-	Role        string     `gorm:"size:20;column:role;not null;default:'user'"`
+	Role        string     `gorm:"size:20;column:role;not null;default:'member'"`
 	Status      string     `gorm:"size:30;column:status;not null;default:'pending_verification'"`
 	LastLoginAt *time.Time `gorm:"column:last_login_at"`
 	// Password policy
